@@ -10,7 +10,11 @@ def load_imdb_dataset():
     """
     logging.info("Caricamento dataset IMDb da Hugging Face...")
     dataset = load_dataset("imdb")
+    # If exists, remove the unsupervised split
+    if "unsupervised" in dataset:
+        del dataset["unsupervised"]
     return dataset
+
 
 def create_splits(dataset, val_ratio=0.2, seed=42):
     """

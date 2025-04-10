@@ -1,7 +1,12 @@
 import logging
 import numpy as np
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
+from transformers import (
+    AutoTokenizer, 
+    AutoModelForSequenceClassification,
+    Trainer, 
+    TrainingArguments
+)
 from datasets import Dataset, load_dataset, load_metric
 
 logging.basicConfig(level=logging.INFO)
@@ -11,7 +16,7 @@ f1_metric = load_metric("f1")
 
 def compute_metrics(eval_pred):
     """
-    Computes accuracy and F1 score for a given set of predictions and labels.
+    Calcola accuracy e F1 score dati logits e label.
     """
     logits, labels = eval_pred
     preds = np.argmax(logits, axis=-1)
@@ -34,7 +39,7 @@ def train_model(
     (es: 'EleutherAI/gpt-neo-2.7B', 'bert-base-uncased', 'facebook/bart-base').
     """
 
-    # Model and tokenizer initialization
+    # We initialize model and tokenizer
     logging.info(f"Caricamento tokenizer e modello da: {model_name_or_path}")
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -42,7 +47,7 @@ def train_model(
         num_labels=num_labels
     )
 
-    # Tokenization function
+    # Tokenizer function
     def tokenize_fn(batch):
         return tokenizer(
             batch["text"],
@@ -51,33 +56,44 @@ def train_model(
             max_length=128
         )
 
-    # We apply the tokenization to the datasets
+    # We apply the tokenizer to the datasets
     train_dataset = train_dataset.map(tokenize_fn, batched=True)
     val_dataset = val_dataset.map(tokenize_fn, batched=True)
 
-    # We rename the "label" column to "labels"
+    # Rename the 'label' column to 'labels'
     train_dataset = train_dataset.rename_column("label", "labels")
     val_dataset = val_dataset.rename_column("label", "labels")
 
-    # We set the PyTorch format
+    # We set the format of the datasets to PyTorch
     train_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     val_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
     # We define the training arguments
     training_args = TrainingArguments(
         output_dir=output_dir,
+        # Save the checkpoints for all epochs
         evaluation_strategy="epoch",
         save_strategy="epoch",
+        # Epochs number
         num_train_epochs=epochs,
+        # Batch size
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
+        # Learning rate
         learning_rate=lr,
+        # We load the best model at the end
         load_best_model_at_end=True,
+        # Log directory
         logging_dir=f"{output_dir}/logs",
-        logging_steps=50
+        # Logging frequency
+        logging_steps=50,
+        # The checkpoints limit
+        save_total_limit=3,
+        # We set the tqdm progress bar
+        disable_tqdm=False
     )
 
-    # We define the Trainer instance
+    # We create the Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -86,7 +102,7 @@ def train_model(
         compute_metrics=compute_metrics
     )
 
-    # We start training
+    # We start the training
     logging.info("Inizio training...")
     trainer.train()
 
@@ -98,25 +114,21 @@ def train_model(
 
     return trainer
 
-def main():
+def main(model_name: str, output_dir: str):
     """
-    This is the main function in which we load the IMDb dataset, 
-    create a split train/val, and then call train_model() for fine-tuning.
+    This main function handles loading the IMDb dataset, 
+    creating the split train/val and starting the fine-tuning with train_model() function.
     """
     logging.info("Caricamento dataset IMDb...")
     dataset = load_dataset("imdb")
 
-    # We create a split equal to 20% of the size of the split provided for the train.
+    # We create a validation split (20% of the original train split size)
     dataset_split = dataset["train"].train_test_split(test_size=0.2, seed=42)
     train_data = dataset_split["train"]
     val_data = dataset_split["test"]
-    test_data = dataset["test"]  # 25k esempi
+    test_data = dataset["test"]  # 25k examples
 
     logging.info(f"Dimensioni dataset: train={len(train_data)}, val={len(val_data)}, test={len(test_data)}")
-
-    # We define a model name and output directory.
-    model_name = "bert-base-uncased"
-    output_dir = "bert_imdb"
 
     trainer = train_model(
         model_name_or_path=model_name,
@@ -130,4 +142,4 @@ def main():
     )
 
 if __name__ == "__main__":
-    main()
+    main("bert-base-uncased", "bert_imdb")

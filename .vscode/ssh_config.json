@@ -1,0 +1,14 @@
+{
+  "name": "Kaggle SSH",
+  "host": "kaggle-notebook",
+  "user": "kaggle",
+  "identityFile": "~/.ssh/id_rsa_kaggle",
+  "localForward": [
+    {
+      "bindAddress": "127.0.0.1",
+      "port": 8888,
+      "host": "127.0.0.1",
+      "hostPort": 8888
+    }
+  ]
+}

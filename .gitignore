@@ -1,0 +1,15 @@
+# Dataset e modelli pesanti
+data/
+models/
+checkpoints/
+logs/
+
+# File di sistema
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+# Ambiente virtuale
+venv/
+.env/

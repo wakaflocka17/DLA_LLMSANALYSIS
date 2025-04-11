@@ -1,19 +1,25 @@
 import logging
 import numpy as np
-from datasets import load_metric
+from datasets import evaluate
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 logging.basicConfig(level=logging.INFO)
 
-def evaluate_model(model_path, dataset):
+def evaluate_model(model_path, dataset, is_pretrained=False):
     """
-    This function loads the fine-tuned model from 'model_path'
-    and evaluates to 'dataset'. 
+    This function loads the model from 'model_path' and evaluates it on 'dataset'.
+    If is_pretrained=True, evaluates the pre-trained model in zero-shot setting.
     Returns a dictionary with metrics (accuracy, f1).
     """
     logging.info(f"Caricamento tokenizer e modello da: {model_path}")
     tokenizer = AutoTokenizer.from_pretrained(model_path)
-    model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    
+    # For pre-trained models, we need to specify the number of labels
+    if is_pretrained:
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=2)
+        logging.info(f"Modello pre-addestrato caricato in modalità zero-shot")
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(model_path)
 
     # Tokenization dataset
     def tokenize_fn(batch):

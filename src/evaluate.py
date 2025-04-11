@@ -1,6 +1,6 @@
 import logging
 import numpy as np
-from datasets import evaluate
+import evaluate  # Changed from: from datasets import evaluate
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 logging.basicConfig(level=logging.INFO)
@@ -35,8 +35,8 @@ def evaluate_model(model_path, dataset, is_pretrained=False):
     dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
     # Loading metrics
-    accuracy_metric = evaluate.load("accuracy")
-    f1_metric = evaluate.load("f1")
+    accuracy_metric = evaluate.load("accuracy")  # Changed from evaluate.load
+    f1_metric = evaluate.load("f1")  # Changed from evaluate.load
 
     # Inference loop
     preds, refs = [], []

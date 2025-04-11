@@ -9,7 +9,7 @@ def load_imdb_dataset():
     Ritorna un DatasetDict con train, test e (opzionale) unsupervised.
     """
     logging.info("Caricamento dataset IMDb da Hugging Face...")
-    dataset = load_dataset("imdb")
+    dataset = load_dataset("stanfordnlp/imdb")
     # If exists, remove the unsupervised split
     if "unsupervised" in dataset:
         del dataset["unsupervised"]

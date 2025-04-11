@@ -29,8 +29,8 @@ def evaluate_model(model_path, dataset):
     dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
     # Loading metrics
-    accuracy_metric = load_metric("accuracy")
-    f1_metric = load_metric("f1")
+    accuracy_metric = evaluate.load("accuracy")
+    f1_metric = evaluate.load("f1")
 
     # Inference loop
     preds, refs = [], []

@@ -120,13 +120,8 @@ def main(model_name: str, output_dir: str):
     creating the split train/val and starting the fine-tuning with train_model() function.
     """
     logging.info("Caricamento dataset IMDb...")
-    dataset = load_dataset("imdb")
-
-    # We create a validation split (20% of the original train split size)
-    dataset_split = dataset["train"].train_test_split(test_size=0.2, seed=42)
-    train_data = dataset_split["train"]
-    val_data = dataset_split["test"]
-    test_data = dataset["test"]  # 25k examples
+    dataset = load_dataset("stanfordnlp/imdb")
+    train_data, val_data, test_data = create_splits(dataset)
 
     logging.info(f"Dimensioni dataset: train={len(train_data)}, val={len(val_data)}, test={len(test_data)}")
 

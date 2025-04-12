@@ -1,27 +1,27 @@
 import logging
 import numpy as np
-import evaluate  # Changed from: from datasets import evaluate
+import evaluate
+import os
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 logging.basicConfig(level=logging.INFO)
 
 def evaluate_model(model_path, dataset, is_pretrained=False):
-    """
-    This function loads the model from 'model_path' and evaluates it on 'dataset'.
-    If is_pretrained=True, evaluates the pre-trained model in zero-shot setting.
-    Returns a dictionary with metrics (accuracy, f1).
-    """
     logging.info(f"Caricamento tokenizer e modello da: {model_path}")
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
     
-    # For pre-trained models, we need to specify the number of labels
+    # Carica localmente, evitando tentativi di connessione remota
+    tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+
     if is_pretrained:
-        model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=2)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_path, num_labels=2, local_files_only=True
+        )
         logging.info(f"Modello pre-addestrato caricato in modalità zero-shot")
     else:
-        model = AutoModelForSequenceClassification.from_pretrained(model_path)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_path, local_files_only=True
+        )
 
-    # Tokenization dataset
     def tokenize_fn(batch):
         return tokenizer(
             batch["text"],
@@ -34,11 +34,9 @@ def evaluate_model(model_path, dataset, is_pretrained=False):
     dataset = dataset.rename_column("label", "labels")
     dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
-    # Loading metrics
-    accuracy_metric = evaluate.load("accuracy")  # Changed from evaluate.load
-    f1_metric = evaluate.load("f1")  # Changed from evaluate.load
+    accuracy_metric = evaluate.load("accuracy")
+    f1_metric = evaluate.load("f1")
 
-    # Inference loop
     preds, refs = [], []
     for example in dataset:
         input_ids = example["input_ids"].unsqueeze(0)

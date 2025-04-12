@@ -137,4 +137,4 @@ def main(model_name: str, output_dir: str):
     )
 
 if __name__ == "__main__":
-    main("bert-base-uncased", "bert_imdb")
+    main("bert-base-uncased", "./models/bert-base-uncased-imdb")

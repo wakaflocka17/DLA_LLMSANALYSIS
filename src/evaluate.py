@@ -5,36 +5,66 @@ import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from sklearn.metrics import classification_report
+from huggingface_hub import HfFolder
 
 logging.basicConfig(level=logging.INFO)
 
-def evaluate_model(model_path, dataset, is_pretrained=False):
+def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
     """
     Carica e valuta un modello Hugging Face (locale o remoto) su un dataset.
     Ritorna un dizionario con accuracy, f1 e stampa il classification report.
+    
+    Args:
+        model_path: Percorso al modello (locale o HF Hub ID)
+        dataset: Dataset da valutare
+        is_pretrained: Se True, usa il modello pre-addestrato senza fine-tuning
+        cache_dir: Directory di cache opzionale per i modelli scaricati
     """
     logging.info(f"Caricamento tokenizer e modello da: {model_path}")
     
     try:
+        # Ottieni token HF se disponibile
+        hf_token = HfFolder.get_token()
+        
+        # Opzioni di caricamento
+        load_options = {
+            "num_labels": 2,
+        }
+        
+        # Aggiungi opzioni per cache e token se disponibili
+        if cache_dir:
+            load_options["cache_dir"] = cache_dir
+            logging.info(f"Utilizzo directory cache: {cache_dir}")
+            
+        if hf_token:
+            load_options["use_auth_token"] = hf_token
+            logging.info("Token di autenticazione HF trovato e utilizzato")
+        
         # Caricamento modello e tokenizer
         if os.path.exists(model_path):
             logging.info(f"Modello trovato localmente in: {model_path}")
-            tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-            model = AutoModelForSequenceClassification.from_pretrained(
-                model_path, num_labels=2, local_files_only=True
-            )
+            load_options["local_files_only"] = True
+            tokenizer = AutoTokenizer.from_pretrained(model_path, **load_options)
+            model = AutoModelForSequenceClassification.from_pretrained(model_path, **load_options)
         else:
             logging.info(f"Modello non trovato localmente. Download da Hugging Face: {model_path}")
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            model = AutoModelForSequenceClassification.from_pretrained(
-                model_path, num_labels=2
-            )
+            # Prova prima senza token
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(model_path, **load_options)
+                model = AutoModelForSequenceClassification.from_pretrained(model_path, **load_options)
+            except Exception as e:
+                logging.warning(f"Errore nel download senza token: {e}")
+                logging.info("Tentativo di download senza opzioni aggiuntive...")
+                # Fallback: prova con opzioni minime
+                tokenizer = AutoTokenizer.from_pretrained(model_path)
+                model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=2)
         
         if is_pretrained:
             logging.info("⚠️ Modalità zero-shot attiva (pre-trained model senza fine-tuning)")
 
     except Exception as e:
         logging.error(f"❌ Errore nel caricamento del modello {model_path}: {e}")
+        logging.error("Suggerimento: Verifica la connessione internet o scarica manualmente i file del modello")
         raise RuntimeError(f"Impossibile caricare il modello {model_path}: {e}")
 
     # Tokenizzazione del dataset

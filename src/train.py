@@ -1,18 +1,18 @@
 import logging
 import numpy as np
-
+from datasets import Dataset, load_dataset, load_metric
+import evaluate
 from transformers import (
     AutoTokenizer, 
     AutoModelForSequenceClassification,
     Trainer, 
     TrainingArguments
 )
-from datasets import Dataset, load_dataset, load_metric
 
 logging.basicConfig(level=logging.INFO)
 
-accuracy_metric = load_metric("accuracy")
-f1_metric = load_metric("f1")
+accuracy_metric = evaluate.load("accuracy")
+f1_metric = evaluate.load("f1")
 
 def compute_metrics(eval_pred):
     """

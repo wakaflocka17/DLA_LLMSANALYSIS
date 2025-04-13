@@ -83,7 +83,7 @@ def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
     # Valutazione
     preds, refs = [], []
 
-    for example in dataset:
+    for idx, example in enumerate(dataset):
         input_ids = example["input_ids"].unsqueeze(0)
         attention_mask = example["attention_mask"].unsqueeze(0)
         labels = example["labels"].item()
@@ -94,6 +94,10 @@ def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
             pred = int(np.argmax(logits, axis=-1)[0])
             preds.append(pred)
             refs.append(labels)
+
+        # Log ogni 500 campioni
+        if idx % 500 == 0 and idx != 0:
+            logging.info(f"🧮 Valutati {idx}/{len(dataset)} esempi")
 
     # Debug check
     assert all(isinstance(p, int) for p in preds), "Errore: preds contiene valori non interi"

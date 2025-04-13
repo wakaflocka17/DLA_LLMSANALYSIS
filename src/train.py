@@ -43,7 +43,15 @@ def train_model(
 
     # Caricamento tokenizer (lo stesso per ogni tipo di modello)
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
-
+    # Se siamo su un modello decoder-only e manca il pad_token, impostiamolo
+    if model_type == "decoder-only" and tokenizer.pad_token is None:
+        logging.info("Il tokenizer non ha un pad_token, impostazione pad_token uguale a eos_token")
+        tokenizer.pad_token = tokenizer.eos_token
+        # Se desideri aggiungere un token nuovo al posto dell'eos_token:
+        # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+        # Assicurati di aggiornare il modello:
+        # model.resize_token_embeddings(len(tokenizer))
+    
     # Caricamento modello con problem_type per gestione coerente dei logits
     if model_type == "encoder-decoder":
         model = AutoModelForSequenceClassification.from_pretrained(

@@ -1,11 +1,12 @@
 import logging
 import numpy as np
-from datasets import Dataset, load_dataset, load_metric
+from datasets import Dataset, load_dataset
+from src.utils import get_model_type
 import evaluate
 from transformers import (
-    AutoTokenizer, 
+    AutoTokenizer,
     AutoModelForSequenceClassification,
-    Trainer, 
+    Trainer,
     TrainingArguments
 )
 
@@ -15,9 +16,6 @@ accuracy_metric = evaluate.load("accuracy")
 f1_metric = evaluate.load("f1")
 
 def compute_metrics(eval_pred):
-    """
-    Calcola accuracy e F1 score dati logits e label.
-    """
     logits, labels = eval_pred
     preds = np.argmax(logits, axis=-1)
     acc = accuracy_metric.compute(predictions=preds, references=labels)
@@ -35,19 +33,21 @@ def train_model(
     lr: float = 2e-5
 ):
     """
-    This function make a fine-tuning for a pre-trained model 
-    (es: 'EleutherAI/gpt-neo-2.7B', 'bert-base-uncased', 'facebook/bart-base').
+    Fine-tuning adattato per tipologia di modello (encoder-only, encoder-decoder, decoder-only).
     """
 
-    # We initialize model and tokenizer
-    logging.info(f"Caricamento tokenizer e modello da: {model_name_or_path}")
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name_or_path,
-        num_labels=num_labels
-    )
+    model_type = get_model_type(model_name_or_path)
+    logging.info(f"Tipologia del modello identificata: {model_type}")
 
-    # Tokenizer function
+    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
+
+    if model_type == "encoder-decoder":
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_name_or_path, num_labels=num_labels, ignore_mismatched_sizes=True)
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_name_or_path, num_labels=num_labels)
+
     def tokenize_fn(batch):
         return tokenizer(
             batch["text"],
@@ -56,44 +56,30 @@ def train_model(
             max_length=128
         )
 
-    # We apply the tokenizer to the datasets
     train_dataset = train_dataset.map(tokenize_fn, batched=True)
     val_dataset = val_dataset.map(tokenize_fn, batched=True)
 
-    # Rename the 'label' column to 'labels'
     train_dataset = train_dataset.rename_column("label", "labels")
     val_dataset = val_dataset.rename_column("label", "labels")
 
-    # We set the format of the datasets to PyTorch
     train_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
     val_dataset.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
-    # We define the training arguments
     training_args = TrainingArguments(
         output_dir=output_dir,
-        # Save the checkpoints for all epochs
         evaluation_strategy="epoch",
         save_strategy="epoch",
-        # Epochs number
         num_train_epochs=epochs,
-        # Batch size
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        # Learning rate
         learning_rate=lr,
-        # We load the best model at the end
         load_best_model_at_end=True,
-        # Log directory
         logging_dir=f"{output_dir}/logs",
-        # Logging frequency
         logging_steps=50,
-        # The checkpoints limit
         save_total_limit=3,
-        # We set the tqdm progress bar
         disable_tqdm=False
     )
 
-    # We create the Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -102,11 +88,9 @@ def train_model(
         compute_metrics=compute_metrics
     )
 
-    # We start the training
     logging.info("Inizio training...")
     trainer.train()
 
-    # We save the model and tokenizer
     logging.info("Training completato. Salvataggio del modello...")
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
@@ -115,10 +99,6 @@ def train_model(
     return trainer
 
 def main(model_name: str, output_dir: str):
-    """
-    This main function handles loading the IMDb dataset, 
-    creating the split train/val and starting the fine-tuning with train_model() function.
-    """
     logging.info("Caricamento dataset IMDb...")
     dataset = load_dataset("stanfordnlp/imdb")
     train_data, val_data, test_data = create_splits(dataset)

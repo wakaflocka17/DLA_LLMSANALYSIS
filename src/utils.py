@@ -5,6 +5,22 @@ from huggingface_hub import create_repo, upload_folder, upload_file
 import os
 import logging
 
+# If we want to use a different model, we can change the model type here
+ENCODER_ONLY_MODELS = ["bert", "roberta", "distilbert"]
+ENCODER_DECODER_MODELS = ["bart", "t5", "llama"]
+DECODER_ONLY_MODELS = ["gpt", "gpt-neo"]
+
+def get_model_type(model_name):
+    model_name = model_name.lower()
+    if any(m in model_name for m in ENCODER_ONLY_MODELS):
+        return "encoder-only"
+    elif any(m in model_name for m in ENCODER_DECODER_MODELS):
+        return "encoder-decoder"
+    elif any(m in model_name for m in DECODER_ONLY_MODELS):
+        return "decoder-only"
+    else:
+        raise ValueError(f"Unknown model type for {model_name}")
+
 def upload_model_to_hf(model_dir: str, repo_id: str, exist_ok=True, private=True):
     """
     Uploads a model directory or file to the Hugging Face Hub.

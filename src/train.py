@@ -9,6 +9,8 @@ from transformers import (
     Trainer,
     TrainingArguments
 )
+# Assicurati di avere anche importato la funzione create_splits se non è presente in questo file
+from src.data_preprocessing import create_splits
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,14 +41,23 @@ def train_model(
     model_type = get_model_type(model_name_or_path)
     logging.info(f"Tipologia del modello identificata: {model_type}")
 
+    # Caricamento tokenizer (lo stesso per ogni tipo di modello)
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
 
+    # Caricamento modello con problem_type per gestione coerente dei logits
     if model_type == "encoder-decoder":
         model = AutoModelForSequenceClassification.from_pretrained(
-            model_name_or_path, num_labels=num_labels, ignore_mismatched_sizes=True)
+            model_name_or_path,
+            num_labels=num_labels,
+            problem_type="single_label_classification",
+            ignore_mismatched_sizes=True
+        )
     else:
         model = AutoModelForSequenceClassification.from_pretrained(
-            model_name_or_path, num_labels=num_labels)
+            model_name_or_path,
+            num_labels=num_labels,
+            problem_type="single_label_classification"
+        )
 
     def tokenize_fn(batch):
         return tokenizer(

@@ -23,39 +23,35 @@ def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
     logging.info(f"Caricamento tokenizer e modello da: {model_path}")
     
     try:
-        # Ottieni token HF se disponibile
+        # Ottieni token HF se disponibile (solo per logging, non usato direttamente)
         hf_token = HfFolder.get_token()
-        
+        if hf_token:
+            logging.info("🔑 Token Hugging Face trovato. Se necessario, assicurati di aver eseguito `huggingface-cli login`")
+
         # Opzioni di caricamento
         load_options = {
             "num_labels": 2,
         }
-        
-        # Aggiungi opzioni per cache e token se disponibili
         if cache_dir:
             load_options["cache_dir"] = cache_dir
-            logging.info(f"Utilizzo directory cache: {cache_dir}")
-            
-        if hf_token:
-            load_options["use_auth_token"] = hf_token
-            logging.info("Token di autenticazione HF trovato e utilizzato")
+            logging.info(f"📁 Utilizzo directory cache: {cache_dir}")
         
         # Caricamento modello e tokenizer
         if os.path.exists(model_path):
-            logging.info(f"Modello trovato localmente in: {model_path}")
+            logging.info(f"📦 Modello trovato localmente in: {model_path}")
             load_options["local_files_only"] = True
             tokenizer = AutoTokenizer.from_pretrained(model_path, **load_options)
             model = AutoModelForSequenceClassification.from_pretrained(model_path, **load_options)
         else:
-            logging.info(f"Modello non trovato localmente. Download da Hugging Face: {model_path}")
-            # Prova prima senza token
+            logging.info(f"🌐 Modello non trovato localmente. Download da Hugging Face: {model_path}")
+            # Prova normale
             try:
                 tokenizer = AutoTokenizer.from_pretrained(model_path, **load_options)
                 model = AutoModelForSequenceClassification.from_pretrained(model_path, **load_options)
             except Exception as e:
-                logging.warning(f"Errore nel download senza token: {e}")
-                logging.info("Tentativo di download senza opzioni aggiuntive...")
-                # Fallback: prova con opzioni minime
+                logging.warning(f"⚠️ Errore nel download con load_options: {e}")
+                logging.info("🔁 Tentativo di download con opzioni minime...")
+                # Fallback: senza opzioni
                 tokenizer = AutoTokenizer.from_pretrained(model_path)
                 model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=2)
         
@@ -64,7 +60,7 @@ def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
 
     except Exception as e:
         logging.error(f"❌ Errore nel caricamento del modello {model_path}: {e}")
-        logging.error("Suggerimento: Verifica la connessione internet o scarica manualmente i file del modello")
+        logging.error("Suggerimento: Verifica la connessione internet, la correttezza dell'ID modello o esegui `huggingface-cli login` per i modelli privati.")
         raise RuntimeError(f"Impossibile caricare il modello {model_path}: {e}")
 
     # Tokenizzazione del dataset

@@ -88,11 +88,13 @@ class BertBaseUncasedIMDB:
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
             per_device_train_batch_size=per_device_train_batch_size,
-            evaluation_strategy="epoch",
-            logging_steps=10,
-            save_steps=10,
+            evaluation_strategy="epoch",  # Valutazione ad ogni epoca
+            save_strategy="epoch",        # Salvataggio ad ogni epoca
             load_best_model_at_end=True,
-            disable_tqdm=False,  # Abilita la barra di avanzamento
+            metric_for_best_model="accuracy",
+            greater_is_better=True,
+            logging_steps=10,
+            disable_tqdm=False,
             **kwargs
         )
 

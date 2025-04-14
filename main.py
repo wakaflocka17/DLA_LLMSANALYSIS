@@ -15,8 +15,8 @@ def main():
                         help="Chiave del modello in model_configs (es. 'bart_base', 'bert_base_uncased', 'gpt_neo_2_7b').")
     parser.add_argument("--mode", type=str, choices=["train", "eval"], default="train",
                         help="Modalità: train per addestramento, eval per valutazione.")
-    # Non serve più passare output_dir da riga di comando, se vuoi forzare sempre la directory 'models/'
-    # Se però vuoi lasciarla configurabile, tieni quest'opzione e setti come default 'models'
+    parser.add_argument("--eval_type", type=str, choices=["pretrained", "fine_tuned"], default="fine_tuned",
+                        help="Tipo di evaluation: 'pretrained' se si vuole valutare il modello pre-addestrato, 'fine_tuned' per il modello fine-tunato.")
     parser.add_argument("--output_dir", type=str, default="models",
                         help="Directory radice in cui salvare i modelli (default: 'models').")
     parser.add_argument("--epochs", type=int, default=None,
@@ -38,7 +38,7 @@ def main():
     else:
         logger.warning("Chiave modello non trovata in model_configs. Verranno usati solo i parametri da riga di comando.")
 
-    # Componiamo la directory finale di output (ad es. 'models/bart_base')
+    # Componiamo la directory finale di output (ad es. 'models/bert_base_uncased')
     output_dir = os.path.join(args.output_dir, args.model_config_key)
     logger.info(f"I modelli verranno salvati in: {output_dir}")
 
@@ -55,7 +55,12 @@ def main():
                     per_device_train_batch_size=args.batch_size)
     else:
         logger.info(f"Modalità EVAL: avvio dell'evaluation per il modello {args.model_config_key}.")
-        result = model.evaluate(per_device_eval_batch_size=args.batch_size)
+        # Differenziamo se si vuole valutare il modello pre-addestrato o quello fine-tunato.
+        if args.eval_type == "fine_tuned":
+            result = model.evaluate(per_device_eval_batch_size=args.batch_size)
+        else:
+            # In questo caso non ricarichiamo il modello dalla directory fine-tunata, ma usiamo l'istanza originale.
+            result = model.evaluate_pretrained(per_device_eval_batch_size=args.batch_size)
         logger.info(f"Risultati evaluation: {result}")
 
 if __name__ == "__main__":

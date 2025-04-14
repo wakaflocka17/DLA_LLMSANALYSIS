@@ -25,6 +25,7 @@ MODEL_CONFIGS = {
     'ensemble_majority_voting': {
         'model_names': ['facebook/bart-base', 'bert-base-uncased', 'EleutherAI/gpt-neo-2.7B'],
         'batch_size': 8,
+        'epochs': 3,
         'repo': 'models/majority-voting',  # Added repo parameter
     }
 }

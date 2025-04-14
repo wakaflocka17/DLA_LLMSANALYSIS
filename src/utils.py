@@ -78,7 +78,7 @@ class TqdmLoggingCallback(TrainerCallback):
     e logga i dettagli dei progressi e delle metriche ad ogni step.
     """
     def __init__(self):
-        self.tqdm_bar = None
+        self.pbar = None
         self.last_logged_step = 0
 
     def on_train_begin(self, args, state, control, **kwargs):
@@ -86,12 +86,12 @@ class TqdmLoggingCallback(TrainerCallback):
         total_steps = state.max_steps if state.max_steps and state.max_steps > 0 else int(
             (len(kwargs.get("train_dataset", [])) / args.per_device_train_batch_size) * args.num_train_epochs
         )
-        self.tqdm_bar = tqdm(total=total_steps, desc="Training")
+        self.pbar = tqdm(total=total_steps, desc="Training")
         logger.info(f"Inizio training: {total_steps} step totali.")
 
     def on_step_end(self, args, state, control, **kwargs):
-        if self.tqdm_bar is not None:
-            self.tqdm_bar.update(1)
+        if self.pbar is not None:
+            self.pbar.update(1)
         if (state.global_step - self.last_logged_step) >= 10:
             self.last_logged_step = state.global_step
             if state.log_history:
@@ -99,6 +99,6 @@ class TqdmLoggingCallback(TrainerCallback):
                 logger.info(f"Step {state.global_step} - Log: {last_log}")
 
     def on_train_end(self, args, state, control, **kwargs):
-        if self.tqdm_bar is not None:
-            self.tqdm_bar.close()
+        if self.pbar is not None:
+            self.pbar.close()
         logger.info("Training completato.")

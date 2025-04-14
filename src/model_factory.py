@@ -3,10 +3,11 @@ import os
 import sys
 from importlib import import_module
 
-# Add the project root directory to sys.path to enable imports from architectures
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# Since architectures is inside src, we don't need to modify sys.path
+# We can remove these lines:
+# project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# if project_root not in sys.path:
+#     sys.path.insert(0, project_root)
 
 logger = logging.getLogger(__name__)
 
@@ -21,11 +22,12 @@ def get_model(model_config_key):
         An instance of the appropriate model class
     """
     # Map config keys to module and class names
+    # Update the module paths to reflect that architectures is inside src
     model_mapping = {
-        'bart_base': ('architectures.model_bart_base_imdb', 'BartBaseIMDB'),
-        'bert_base_uncased': ('architectures.model_bert_base_uncased_imdb', 'BertBaseUncasedIMDB'),
-        'gpt_neo_2_7b': ('architectures.model_gpt_neo_2_7b_imdb', 'GPTNeo27BIMDB'),
-        'ensemble_majority_voting': ('architectures.model_ensemble_majority_voting', 'EnsembleMajorityVoting')
+        'bart_base': ('src.architectures.model_bart_base_imdb', 'BartBaseIMDB'),
+        'bert_base_uncased': ('src.architectures.model_bert_base_uncased_imdb', 'BertBaseUncasedIMDB'),
+        'gpt_neo_2_7b': ('src.architectures.model_gpt_neo_2_7b_imdb', 'GPTNeo27BIMDB'),
+        'ensemble_majority_voting': ('src.architectures.model_ensemble_majority_voting', 'EnsembleMajorityVoting')
     }
     
     if model_config_key not in model_mapping:

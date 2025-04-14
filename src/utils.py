@@ -73,33 +73,23 @@ def set_seed(seed=42):
         torch.cuda.manual_seed_all(seed)
 
 class TqdmLoggingCallback(TrainerCallback):
-    """
-    Callback personalizzato che utilizza tqdm per visualizzare una barra di avanzamento
-    e logga i dettagli dei progressi e delle metriche ad ogni step (aggiornata meno frequentemente).
-    """
-    def __init__(self):
+    def __init__(self, update_every=100):
         self.pbar = None
-        self.last_logged_step = 0
+        self.last_update_step = 0
+        self.update_every = update_every
 
     def on_train_begin(self, args, state, control, **kwargs):
         total_steps = state.max_steps if state.max_steps and state.max_steps > 0 else int(
             (len(kwargs.get("train_dataset", [])) / args.per_device_train_batch_size) * args.num_train_epochs
         )
-        # Impostiamo mininterval per ridurre gli aggiornamenti ridondanti
         self.pbar = tqdm(total=total_steps, desc="Training", mininterval=1)
-        logger.info(f"Inizio training: {total_steps} step totali.")
-
+    
     def on_step_end(self, args, state, control, **kwargs):
-        # Aggiorniamo la barra ogni 5 step per ridurre l'overhead
-        if state.global_step % 5 == 0 and self.pbar is not None:
-            self.pbar.update(5)
-        if (state.global_step - self.last_logged_step) >= 10:
-            self.last_logged_step = state.global_step
-            if state.log_history:
-                last_log = state.log_history[-1]
-                logger.info(f"Step {state.global_step} - Log: {last_log}")
+        steps_since_update = state.global_step - self.last_update_step
+        if steps_since_update >= self.update_every and self.pbar is not None:
+            self.pbar.update(steps_since_update)
+            self.last_update_step = state.global_step
 
     def on_train_end(self, args, state, control, **kwargs):
         if self.pbar is not None:
             self.pbar.close()
-        logger.info("Training completato.")

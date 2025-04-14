@@ -93,12 +93,12 @@ class BertBaseUncasedIMDB:
             load_best_model_at_end=True,
             metric_for_best_model="accuracy",
             greater_is_better=True,
-            logging_steps=100,
+            logging_steps=50,
             disable_tqdm=False,
             **kwargs
         )
 
-        tqdm_callback = TqdmLoggingCallback()
+        tqdm_callback = TqdmLoggingCallback(update_every=50)
 
         trainer = Trainer(
             model=self.model,

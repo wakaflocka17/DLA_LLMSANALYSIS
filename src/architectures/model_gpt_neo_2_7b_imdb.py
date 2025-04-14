@@ -88,14 +88,14 @@ class GPTNeo27BIMDB:
             num_train_epochs=num_train_epochs,
             per_device_train_batch_size=per_device_train_batch_size,
             evaluation_strategy="epoch",
-            logging_steps=10,
+            logging_steps=50,
             save_strategy="epoch",
             load_best_model_at_end=True,
             disable_tqdm=False,  # Abilita la barra di avanzamento
             **kwargs
         )
 
-        tqdm_callback = TqdmLoggingCallback()
+        tqdm_callback = TqdmLoggingCallback(update_every=50)
 
         trainer = Trainer(
             model=self.model,

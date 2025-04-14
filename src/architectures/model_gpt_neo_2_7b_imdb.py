@@ -22,6 +22,7 @@ class GPTNeo27BIMDB:
         self.repo = repo
         self.pretrained_model_name = pretrained_model_name
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
+        self.tokenizer.pad_token = self.tokenizer.eos_token
         # Carica il modello per la sequence classification; impostiamo num_labels=2 per la classificazione binaria
         self.model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_name, num_labels=2)
         self.train_dataset = None

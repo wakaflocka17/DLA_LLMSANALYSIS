@@ -5,7 +5,6 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trai
 from src.utils import TqdmLoggingCallback
 from src.data_preprocessing import load_imdb_dataset
 
-# Configurazione del logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -79,7 +78,7 @@ class GPTNeo27BIMDB:
         Parametri:
           - output_dir (str): Directory per salvare i risultati.
           - num_train_epochs (int): Numero di epoche di training.
-          - per_device_train_batch_size (int): Batch size per dispositivo.
+          - per_device_train_batch_size (int): Batch size per dispositivo durante il training.
           - kwargs: Parametri aggiuntivi per TrainingArguments.
         """
         if self.train_dataset is None or self.eval_dataset is None:
@@ -88,14 +87,14 @@ class GPTNeo27BIMDB:
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=per_device_train_batch_size,
+            per_device_train_batch_size=per_device_train_batch_size,  # Batch size per il training
             evaluation_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
             metric_for_best_model="accuracy",
             greater_is_better=True,
             logging_steps=100,
-            disable_tqdm=True,  # Puoi modificare questo parametro se desideri la barra di avanzamento custom
+            disable_tqdm=True,
             **kwargs
         )
 
@@ -121,11 +120,11 @@ class GPTNeo27BIMDB:
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
-        Esegue l'evaluation sul modello fine-tunato (carica i pesi dalla directory di salvataggio)
-        con logging dettagliato e progress bar.
+        Esegue l'evaluation sul modello fine-tunato: se esiste la directory dei pesi, li carica e usa
+        il modello fine-tunato per eseguire l'evaluation.
         
         Parametri:
-          - per_device_eval_batch_size (int): Batch size per la valutazione.
+          - per_device_eval_batch_size (int): Batch size per dispositivo durante l'evaluation.
           - kwargs: Parametri aggiuntivi per TrainingArguments.
         
         Ritorna:
@@ -142,7 +141,7 @@ class GPTNeo27BIMDB:
 
         eval_args = TrainingArguments(
             output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
+            per_device_eval_batch_size=per_device_eval_batch_size,  # Batch size per l'evaluation
             disable_tqdm=False,
             **kwargs
         )
@@ -164,7 +163,7 @@ class GPTNeo27BIMDB:
         Esegue l'evaluation sul modello pre-addestrato, senza caricare i pesi fine-tunati.
         
         Parametri:
-          - per_device_eval_batch_size (int): Batch size per la valutazione.
+          - per_device_eval_batch_size (int): Batch size per dispositivo durante l'evaluation.
           - kwargs: Parametri aggiuntivi per TrainingArguments.
         
         Ritorna:
@@ -179,8 +178,6 @@ class GPTNeo27BIMDB:
             disable_tqdm=False,
             **kwargs
         )
-
-        # Ricarica il modello pre-addestrato, in modo da non usare i pesi aggiornati durante il training
         from transformers import AutoModelForSequenceClassification
         logger.info("Valutazione sul modello pre-addestrato...")
         pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)

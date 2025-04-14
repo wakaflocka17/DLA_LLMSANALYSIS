@@ -28,7 +28,7 @@ class BartBaseIMDB:
 
     def prepare_datasets(self, dataset_name: str = "imdb", split_train: str = "train", split_test: str = "test", max_samples: int = None):
         """
-        Carica e prepara i dataset per training e evaluation.
+        Carica e prepara i dataset per training ed evaluation.
         
         Parametri:
           - dataset_name (str): Nome del dataset (default "imdb").
@@ -76,7 +76,7 @@ class BartBaseIMDB:
         Parametri:
           - output_dir (str): Directory di output per i risultati.
           - num_train_epochs (int): Numero di epoche.
-          - per_device_train_batch_size (int): Batch size per dispositivo.
+          - per_device_train_batch_size (int): Batch size per dispositivo durante il training.
           - kwargs: Parametri aggiuntivi per TrainingArguments.
         """
         if self.train_dataset is None or self.eval_dataset is None:
@@ -85,7 +85,7 @@ class BartBaseIMDB:
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=per_device_train_batch_size,
+            per_device_train_batch_size=per_device_train_batch_size,  # Specifico per il training
             evaluation_strategy="epoch",
             logging_steps=100,
             save_strategy="epoch",
@@ -116,11 +116,11 @@ class BartBaseIMDB:
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
-        Esegue l'evaluation sul modello fine-tunato: se esiste la directory dei pesi, li carica e usa
-        il modello fine-tunato per eseguire l'evaluation.
+        Esegue l'evaluation sul modello fine-tunato: se esiste la directory dei pesi, carica i pesi aggiornati
+        e usa il modello fine-tunato per eseguire l'evaluation.
         
         Parametri:
-          - per_device_eval_batch_size (int): Batch size per la valutazione.
+          - per_device_eval_batch_size (int): Batch size per dispositivo durante l'evaluation.
           - kwargs: Parametri aggiuntivi per TrainingArguments.
         
         Ritorna:
@@ -136,7 +136,7 @@ class BartBaseIMDB:
 
         eval_args = TrainingArguments(
             output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
+            per_device_eval_batch_size=per_device_eval_batch_size,  # Specifico per l'evaluation
             disable_tqdm=False,
             **kwargs
         )
@@ -157,7 +157,7 @@ class BartBaseIMDB:
         Esegue l'evaluation sul modello pre-addestrato, senza caricare i pesi fine-tunati.
         
         Parametri:
-          - per_device_eval_batch_size (int): Batch size per la valutazione.
+          - per_device_eval_batch_size (int): Batch size per dispositivo durante l'evaluation.
           - kwargs: Parametri aggiuntivi per TrainingArguments.
         
         Ritorna:
@@ -172,7 +172,6 @@ class BartBaseIMDB:
             disable_tqdm=False,
             **kwargs
         )
-        # Ricarica il modello pre-addestrato
         from transformers import BartForSequenceClassification
         logger.info("Valutazione sul modello pre-addestrato...")
         pretrained_model = BartForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)

@@ -7,7 +7,6 @@ from scipy.stats import mode
 # Importa la funzione factory per ottenere le istanze dei singoli modelli
 from model_factory import get_model
 
-# Configuriamo il logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -49,45 +48,45 @@ class EnsembleMajorityVoting:
             train_dataset = dataset[split_train]
             eval_dataset = dataset[split_test]
 
-        # Per ciascun membro usiamo il loro metodo di preparazione
+        # Per ciascun membro chiamiamo il loro metodo di preparazione
         for member in self.members:
-            # Ogni membro prepara i propri dataset (tokenizzazione, etc.)
             member.prepare_datasets(dataset_name, split_train, split_test, max_samples)
         # Assumiamo che tutti i membri abbiano lo stesso formato e usiamo il dataset del primo come riferimento
         self.train_dataset = self.members[0].train_dataset
         self.eval_dataset = self.members[0].eval_dataset
 
-    def train(self, output_dir: str = "./results", **kwargs):
+    def train(self, output_dir: str = "./results", per_device_train_batch_size: int = 8, **kwargs):
         """
-        Allena ciascun modello membro dell'ensemble.
+        Allena ciascun modello membro dell'ensemble utilizzando il batch size specifico per il training.
 
         Parametri:
           - output_dir (str): Directory di output per salvare i modelli.
+          - per_device_train_batch_size (int): Batch size per il training.
           - kwargs: Parametri aggiuntivi da passare al metodo train() dei singoli modelli.
         """
         logger.info("Inizio training per l'ensemble. Allenamento dei membri:")
         for member in self.members:
             logger.info(f"--> Training del membro: {member.__class__.__name__}")
-            member.train(output_dir=output_dir, **kwargs)
+            member.train(output_dir=output_dir, per_device_train_batch_size=per_device_train_batch_size, **kwargs)
         logger.info("Training dell'ensemble completato.")
 
     def predict(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
-        Esegue la predizione sui dati di evaluation per ciascun membro e aggrega le predizioni con majority voting.
+        Esegue la predizione sui dati di evaluation per ciascun membro utilizzando il batch size specifico per l'evaluation
+        e aggrega le predizioni tramite majority voting.
 
         Parametri:
           - per_device_eval_batch_size (int): Batch size per la predizione.
           - kwargs: Parametri aggiuntivi da passare a TrainingArguments.
+        
         Ritorna:
           - Un array NumPy con le predizioni ensemble.
         """
-        # Assicurarsi che il dataset di evaluation sia stato preparato
         if self.eval_dataset is None:
             self.prepare_datasets()
 
         predictions_list = []
         for member in self.members:
-            # Configuriamo TrainingArguments per la fase di predizione
             eval_args = TrainingArguments(
                 output_dir="./results",
                 per_device_eval_batch_size=per_device_eval_batch_size,
@@ -107,8 +106,7 @@ class EnsembleMajorityVoting:
         # Aggrega le predizioni: per ogni esempio si sceglie il voto di maggioranza
         stacked = np.stack(predictions_list, axis=0)  # forma: (num_members, num_samples)
         ensemble_preds, _ = mode(stacked, axis=0)
-        ensemble_preds = ensemble_preds.flatten()
-        return ensemble_preds
+        return ensemble_preds.flatten()
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
@@ -117,6 +115,7 @@ class EnsembleMajorityVoting:
         Parametri:
           - per_device_eval_batch_size (int): Batch size per la valutazione.
           - kwargs: Parametri aggiuntivi da passare al metodo predict().
+        
         Ritorna:
           - Un dizionario con la metrica 'accuracy'.
         """

@@ -50,7 +50,7 @@ class BertBaseUncasedIMDB:
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=per_device_train_batch_size,
+            per_device_train_batch_size=per_device_train_batch_size,  # Training batch size
             evaluation_strategy="epoch",
             save_strategy="epoch",
             load_best_model_at_end=True,
@@ -82,7 +82,7 @@ class BertBaseUncasedIMDB:
             logger.info("Training completato senza log di metriche finali.")
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
-        # Valutazione per il modello fine-tunato: carica i pesi dalla directory salvata (self.repo).
+        # Valutazione per il modello fine-tunato: se esiste la directory repo, carico i pesi aggiornati.
         if self.eval_dataset is None:
             self.prepare_datasets()
 
@@ -93,7 +93,7 @@ class BertBaseUncasedIMDB:
 
         eval_args = TrainingArguments(
             output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
+            per_device_eval_batch_size=per_device_eval_batch_size,  # Evaluation batch size
             disable_tqdm=False,
             **kwargs
         )
@@ -105,13 +105,13 @@ class BertBaseUncasedIMDB:
             tokenizer=self.tokenizer,
             compute_metrics=self.compute_metrics
         )
-        logger.info("Inizio valutazione (fine-tuned)...")
+        logger.info("Inizio valutazione (fine-tunato)...")
         results = trainer.evaluate()
         logger.info(f"Valutazione completata con risultati: {results}")
         return results
 
     def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, **kwargs):
-        # Valutazione per il modello pre-addestrato: usiamo l'istanza originale (senza caricare pesi fine-tunati)
+        # Valutazione per il modello pre-addestrato: uso un'istanza ricaricata dalla sorgente originale.
         if self.eval_dataset is None:
             self.prepare_datasets()
 
@@ -122,7 +122,6 @@ class BertBaseUncasedIMDB:
             **kwargs
         )
 
-        # Importante: se avevamo eventualmente aggiornato self.model con il fine-tuning, ricarichiamo il modello pre-addestrato.
         from transformers import BertForSequenceClassification
         logger.info("Valutazione sul modello pre-addestrato...")
         pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)

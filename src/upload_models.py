@@ -5,10 +5,10 @@ from utils import upload_model_to_hf
 
 # Mappa: cartella locale del modello -> repo Hugging Face
 MODELS_TO_UPLOAD = {
-    "bert-base-uncased-imdb": "username/bert-imdb-finetuned",
-    "bart-base-imdb": "username/bart-imdb-finetuned",
-    "gpt-neo-2.7b-imdb": "username/gptneo-imdb-finetuned",
-    "ensemble_majority_voting": "username/ensemble-majority-voting-imdb"
+    "bert-base-uncased-imdb": "wakaflocka17/bert-imdb-finetuned",
+    "bart-base-imdb": "wakaflocka17/bart-imdb-finetuned",
+    "gpt-neo-2.7b-imdb": "wakaflocka17/gptneo-imdb-finetuned",
+    "ensemble_majority_voting": "wakaflocka17/ensemble-majority-voting-imdb"
 }
 
 BASE_MODEL_DIR = "./models"

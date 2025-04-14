@@ -21,6 +21,15 @@ def get_model_type(model_name):
     else:
         raise ValueError(f"Unknown model type for {model_name}")
 
+def get_prediction(logits, model_type: str):
+    if model_type in ["encoder-only", "encoder-decoder"]:
+        return logits.argmax(dim=-1).item()
+    elif model_type == "decoder-only":
+        # Nel caso decoder-only potrebbe essere necessario prendere l'ultimo token
+        return logits[:, -1, :].argmax(dim=-1).item()
+    else:
+        raise ValueError("Tipo modello non supportato")
+
 def upload_model_to_hf(model_dir: str, repo_id: str, exist_ok=True, private=True):
     """
     Uploads a model directory or file to the Hugging Face Hub.

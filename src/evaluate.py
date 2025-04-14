@@ -1,19 +1,15 @@
 import logging
-import numpy as np
 import evaluate
 import os
 import torch
-from src.utils import get_model_type
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from sklearn.metrics import classification_report
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from huggingface_hub import HfFolder
+from src.utils import get_model_type, get_prediction
 
 logging.basicConfig(level=logging.INFO)
 
 def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
-    """
-    Valutazione adattata per tipologia di modello (encoder-only, encoder-decoder, decoder-only).
-    """
     logging.info(f"Caricamento tokenizer e modello da: {model_path}")
 
     try:
@@ -59,12 +55,8 @@ def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
             outputs = model(input_ids=input_ids, attention_mask=attention_mask)
             logits = outputs.logits.detach().cpu()
 
-            if model_type in ["encoder-only", "encoder-decoder"]:
-                pred = logits.argmax(dim=-1).item()
-            elif model_type == "decoder-only":
-                pred = logits[:, -1, :].argmax(dim=-1).item()
-            else:
-                raise ValueError("Tipo modello non supportato")
+            # Utilizzo della funzione helper per ottenere la predizione in base al modello
+            pred = get_prediction(logits, model_type)
 
         preds.append(pred)
         refs.append(labels)
@@ -76,6 +68,5 @@ def evaluate_model(model_path, dataset, is_pretrained=False, cache_dir=None):
     f1 = f1_metric.compute(predictions=preds, references=refs, average="binary")
 
     logging.info("\n" + classification_report(refs, preds, target_names=["negativo", "positivo"]))
-
     logging.info(f"✅ Accuracy: {accuracy['accuracy']:.4f} | F1: {f1['f1']:.4f}")
     return {"accuracy": accuracy["accuracy"], "f1": f1["f1"]}

@@ -1,16 +1,9 @@
 import logging
 import numpy as np
-from datasets import Dataset, load_dataset
-from src.utils import get_model_type
 import evaluate
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSequenceClassification,
-    Trainer,
-    TrainingArguments
-)
-# Assicurati di avere anche importato la funzione create_splits se non è presente in questo file
-from src.data_preprocessing import create_splits
+from datasets import Dataset
+from transformers import Trainer, TrainingArguments
+from src.model_factory import get_tokenizer_and_model
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,39 +27,10 @@ def train_model(
     batch_size: int = 8,
     lr: float = 2e-5
 ):
-    """
-    Fine-tuning adattato per tipologia di modello (encoder-only, encoder-decoder, decoder-only).
-    """
-
-    model_type = get_model_type(model_name_or_path)
-    logging.info(f"Tipologia del modello identificata: {model_type}")
-
-    # Caricamento tokenizer (lo stesso per ogni tipo di modello)
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
-    # Se siamo su un modello decoder-only e manca il pad_token, impostiamolo
-    if model_type == "decoder-only" and tokenizer.pad_token is None:
-        logging.info("Il tokenizer non ha un pad_token, impostazione pad_token uguale a eos_token")
-        tokenizer.pad_token = tokenizer.eos_token
-        # Se desideri aggiungere un token nuovo al posto dell'eos_token:
-        # tokenizer.add_special_tokens({"pad_token": "[PAD]"})
-        # Assicurati di aggiornare il modello:
-        # model.resize_token_embeddings(len(tokenizer))
+    # Otteniamo tokenizer e modello in modo modulare
+    tokenizer, model = get_tokenizer_and_model(model_name_or_path, num_labels)
     
-    # Caricamento modello con problem_type per gestione coerente dei logits
-    if model_type == "encoder-decoder":
-        model = AutoModelForSequenceClassification.from_pretrained(
-            model_name_or_path,
-            num_labels=num_labels,
-            problem_type="single_label_classification",
-            ignore_mismatched_sizes=True
-        )
-    else:
-        model = AutoModelForSequenceClassification.from_pretrained(
-            model_name_or_path,
-            num_labels=num_labels,
-            problem_type="single_label_classification"
-        )
-
+    # Funzione di tokenizzazione comune
     def tokenize_fn(batch):
         return tokenizer(
             batch["text"],
@@ -74,7 +38,7 @@ def train_model(
             truncation=True,
             max_length=128
         )
-
+        
     train_dataset = train_dataset.map(tokenize_fn, batched=True)
     val_dataset = val_dataset.map(tokenize_fn, batched=True)
 
@@ -116,24 +80,3 @@ def train_model(
     logging.info(f"Modello e tokenizer salvati in: {output_dir}")
 
     return trainer
-
-def main(model_name: str, output_dir: str):
-    logging.info("Caricamento dataset IMDb...")
-    dataset = load_dataset("stanfordnlp/imdb")
-    train_data, val_data, test_data = create_splits(dataset)
-
-    logging.info(f"Dimensioni dataset: train={len(train_data)}, val={len(val_data)}, test={len(test_data)}")
-
-    trainer = train_model(
-        model_name_or_path=model_name,
-        train_dataset=train_data,
-        val_dataset=val_data,
-        output_dir=output_dir,
-        num_labels=2,
-        epochs=2,
-        batch_size=8,
-        lr=2e-5
-    )
-
-if __name__ == "__main__":
-    main("bert-base-uncased", "./models/bert-base-uncased-imdb")

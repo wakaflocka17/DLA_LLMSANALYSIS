@@ -3,6 +3,7 @@ import logging
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 from datasets import load_dataset
 from src.utils import TqdmLoggingCallback
+from src.data_preprocessing import load_imdb_dataset
 
 # Configurazione del logger
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class GPTNeo27BIMDB:
           - split_test (str): Nome dello split per l'evaluation.
           - max_samples (int): Limita il numero di campioni (utile per debug).
         """
-        dataset = load_dataset(dataset_name)
+        dataset = load_imdb_dataset()
         if max_samples:
             self.train_dataset = dataset[split_train].shuffle(seed=42).select(range(max_samples))
             self.eval_dataset = dataset[split_test].shuffle(seed=42).select(range(max_samples))

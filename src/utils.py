@@ -77,19 +77,57 @@ class TqdmLoggingCallback(TrainerCallback):
         self.pbar = None
         self.last_update_step = 0
         self.update_every = update_every
+        self.training_loss = 0
+        self.last_log = {}
 
     def on_train_begin(self, args, state, control, **kwargs):
         total_steps = state.max_steps if state.max_steps and state.max_steps > 0 else int(
             (len(kwargs.get("train_dataset", [])) / args.per_device_train_batch_size) * args.num_train_epochs
         )
-        self.pbar = tqdm(total=total_steps, desc="Training", mininterval=1)
-    
+        # Enhanced progress bar with more formatting options
+        self.pbar = tqdm(
+            total=total_steps, 
+            desc="Training",
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}, Loss: {postfix[0]:.4f}]",
+            mininterval=2.0,
+            postfix=[0.0]  # Initial loss value
+        )
+        logger.info(f"Inizio training: {total_steps} step totali.")
+
     def on_step_end(self, args, state, control, **kwargs):
-        steps_since_update = state.global_step - self.last_update_step
-        if steps_since_update >= self.update_every and self.pbar is not None:
-            self.pbar.update(steps_since_update)
-            self.last_update_step = state.global_step
+        # Update progress bar with latest metrics
+        if self.pbar is not None and state.global_step is not None:
+            steps_since_update = state.global_step - self.last_update_step
+            
+            # Update loss value if available in log history
+            if state.log_history and len(state.log_history) > 0:
+                latest_log = state.log_history[-1]
+                if 'loss' in latest_log:
+                    self.training_loss = latest_log['loss']
+                    self.last_log = latest_log
+                    self.pbar.postfix[0] = self.training_loss
+            
+            if steps_since_update >= self.update_every:
+                self.pbar.update(steps_since_update)
+                self.last_update_step = state.global_step
+                
+                # Log detailed metrics every update_every steps
+                if self.last_log:
+                    log_str = f"Step {state.global_step}"
+                    for k, v in self.last_log.items():
+                        if isinstance(v, (int, float)):
+                            log_str += f", {k}: {v:.4f}" if isinstance(v, float) else f", {k}: {v}"
+                    logger.info(log_str)
 
     def on_train_end(self, args, state, control, **kwargs):
-        if self.pbar is not None:
+        # Update for any remaining steps
+        if self.pbar is not None and state.global_step > self.last_update_step:
+            self.pbar.update(state.global_step - self.last_update_step)
             self.pbar.close()
+        
+        # Final training summary
+        if state.log_history:
+            final_metrics = state.log_history[-1]
+            logger.info(f"Training completato. Metriche finali: {final_metrics}")
+        else:
+            logger.info("Training completato.")

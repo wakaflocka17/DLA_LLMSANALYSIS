@@ -1,20 +1,26 @@
+# Configuration settings for different models
 MODEL_CONFIGS = {
-    "gpt_neo_2_7b": {
-        "model_name": "EleutherAI/gpt-neo-2.7B",
-        "batch_size": 4,
-        "epochs": 2,
-        "lr": 1e-5
+    'bart_base': {
+        'model_name': 'facebook/bart-base',
+        'epochs': 3,
+        'batch_size': 16,
+        'learning_rate': 5e-5,
     },
-    "bert_base_uncased": {
-        "model_name": "bert-base-uncased",
-        "batch_size": 8,
-        "epochs": 3,
-        "lr": 2e-5
+    'bert_base_uncased': {
+        'model_name': 'bert-base-uncased',
+        'epochs': 3,
+        'batch_size': 16,
+        'learning_rate': 2e-5,
     },
-    "bart_base": {
-        "model_name": "facebook/bart-base",
-        "batch_size": 8,
-        "epochs": 3,
-        "lr": 2e-5
+    'gpt_neo_2_7b': {
+        'model_name': 'EleutherAI/gpt-neo-2.7B',
+        'epochs': 2,
+        'batch_size': 4,  # Smaller batch size for large model
+        'learning_rate': 1e-5,
+        'gradient_accumulation_steps': 4,
+    },
+    'ensemble_majority_voting': {
+        'model_names': ['facebook/bart-base', 'bert-base-uncased', 'EleutherAI/gpt-neo-2.7B'],
+        'batch_size': 8,
     }
 }

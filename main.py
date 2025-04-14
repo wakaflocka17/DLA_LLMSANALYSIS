@@ -2,8 +2,9 @@ import argparse
 import logging
 import os
 
-from model_factory import get_model
-from model_configs import MODEL_CONFIGS
+# Update imports to use the src prefix
+from src.model_factory import get_model
+from src.model_configs import MODEL_CONFIGS
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)

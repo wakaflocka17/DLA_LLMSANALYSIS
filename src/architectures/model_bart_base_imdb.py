@@ -85,7 +85,7 @@ class BartBaseIMDB:
             per_device_train_batch_size=per_device_train_batch_size,
             evaluation_strategy="epoch",
             logging_steps=10,
-            save_steps=10,
+            save_strategy="epoch",
             load_best_model_at_end=True,
             disable_tqdm=False,  # Abilita la barra di avanzamento
             **kwargs

@@ -2,7 +2,7 @@ import numpy as np
 import logging
 from transformers import BertForSequenceClassification, BertTokenizer, Trainer, TrainingArguments
 from datasets import load_dataset
-from utils import TqdmLoggingCallback
+from src.utils import TqdmLoggingCallback
 
 # Configurazione del logger
 logger = logging.getLogger(__name__)

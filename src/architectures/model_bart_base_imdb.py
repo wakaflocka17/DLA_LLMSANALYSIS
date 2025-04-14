@@ -2,7 +2,7 @@ import numpy as np
 import logging
 from transformers import BartForSequenceClassification, BartTokenizer, Trainer, TrainingArguments, TrainerCallback
 from datasets import load_dataset
-from utils import TqdmLoggingCallback
+from src.utils import TqdmLoggingCallback
 
 class BartBaseIMDB:
     def __init__(self, repo: str, pretrained_model_name: str = "facebook/bart-base", **kwargs):

@@ -22,7 +22,6 @@ def get_model(model_config_key):
         An instance of the appropriate model class
     """
     # Map config keys to module and class names
-    # Update the module paths to reflect that architectures is inside src
     model_mapping = {
         'bart_base': ('src.architectures.model_bart_base_imdb', 'BartBaseIMDB'),
         'bert_base_uncased': ('src.architectures.model_bert_base_uncased_imdb', 'BertBaseUncasedIMDB'),
@@ -33,6 +32,10 @@ def get_model(model_config_key):
     if model_config_key not in model_mapping:
         raise ValueError(f"Unknown model configuration key: {model_config_key}")
     
+    # Ottieni la configurazione del modello
+    from src.model_configs import MODEL_CONFIGS
+    config = MODEL_CONFIGS.get(model_config_key, {})
+    
     module_path, class_name = model_mapping[model_config_key]
     
     try:
@@ -40,8 +43,8 @@ def get_model(model_config_key):
         module = import_module(module_path)
         model_class = getattr(module, class_name)
         
-        # Create and return an instance of the model
-        return model_class()
+        # Create and return an instance of the model with repo parameter
+        return model_class(repo=config.get('repo', f'models/{model_config_key}'))
     except (ImportError, AttributeError) as e:
         logger.error(f"Failed to import model {model_config_key}: {e}")
         raise

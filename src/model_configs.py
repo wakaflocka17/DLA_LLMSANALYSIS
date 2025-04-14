@@ -8,11 +8,11 @@ MODEL_CONFIGS = {
         'repo': 'models/bart-base',  # Added repo parameter
     },
     'bert_base_uncased': {
-        'model_name': 'bert-base-uncased',
+        'model_name': 'google-bert/bert-base-uncased',
         'epochs': 4,
         'batch_size': 16,
         'learning_rate': 2e-5,
-        'repo': 'models/bert-base-uncased',
+        'repo': 'models/bert_base_uncased',
     },
     'gpt_neo_2_7b': {
         'model_name': 'EleutherAI/gpt-neo-2.7B',

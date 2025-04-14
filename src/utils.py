@@ -4,6 +4,11 @@ import torch
 from huggingface_hub import create_repo, upload_folder, upload_file
 import os
 import logging
+from tqdm import tqdm
+from transformers import TrainerCallback
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # If we want to use a different model, we can change the model type here
 ENCODER_ONLY_MODELS = ["bert", "roberta", "distilbert"]
@@ -66,3 +71,34 @@ def set_seed(seed=42):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+class TqdmLoggingCallback(TrainerCallback):
+    """
+    Callback personalizzato che utilizza tqdm per visualizzare una barra di avanzamento
+    e logga i dettagli dei progressi e delle metriche ad ogni step.
+    """
+    def __init__(self):
+        self.tqdm_bar = None
+        self.last_logged_step = 0
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        # Calcola il numero totale di step; se non definito, calcola in base al dataset e batch size
+        total_steps = state.max_steps if state.max_steps and state.max_steps > 0 else int(
+            (len(kwargs.get("train_dataset", [])) / args.per_device_train_batch_size) * args.num_train_epochs
+        )
+        self.tqdm_bar = tqdm(total=total_steps, desc="Training")
+        logger.info(f"Inizio training: {total_steps} step totali.")
+
+    def on_step_end(self, args, state, control, **kwargs):
+        if self.tqdm_bar is not None:
+            self.tqdm_bar.update(1)
+        if (state.global_step - self.last_logged_step) >= 10:
+            self.last_logged_step = state.global_step
+            if state.log_history:
+                last_log = state.log_history[-1]
+                logger.info(f"Step {state.global_step} - Log: {last_log}")
+
+    def on_train_end(self, args, state, control, **kwargs):
+        if self.tqdm_bar is not None:
+            self.tqdm_bar.close()
+        logger.info("Training completato.")

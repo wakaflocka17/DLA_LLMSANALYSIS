@@ -1,30 +1,45 @@
-import logging
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from src.utils import get_model_type
+# Importa le classi dei modelli specifici.
+# Si presume che i file siano nominati come segue:
+# - model_bert_base_uncased_imdb.py -> classe BertBaseUncasedIMDB
+# - model_bart_base_imdb.py -> classe BartBaseIMDB
+# - model_gpt_neo_2_7b_imdb.py -> classe GPTNeo27BIMDB
+# - model_ensemble_majority_voting.py -> classe EnsembleMajorityVoting
 
-def get_tokenizer_and_model(model_name_or_path: str, num_labels: int = 2):
-    model_type = get_model_type(model_name_or_path)
-    logging.info(f"Tipologia del modello identificata: {model_type}")
-    
-    # Caricamento del tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=True)
-    
-    # Per i modelli decoder-only (come GPT-Neo 2.7B) è fondamentale avere un pad_token
-    if model_type == "decoder-only" and tokenizer.pad_token is None:
-        logging.info("Il tokenizer non ha un pad_token, aggiungo un token di padding uguale a eos_token")
-        # Aggiunge il token EOS come pad_token tramite il metodo add_special_tokens
-        tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
-    
-    # Opzioni di caricamento specifiche (ad es. ignore_mismatched_sizes per gli encoder-decoder)
-    load_options = {"num_labels": num_labels}
-    if model_type == "encoder-decoder":
-        load_options["ignore_mismatched_sizes"] = True
-    
-    # Caricamento del modello
-    model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, **load_options)
-    
-    # Se abbiamo aggiunto special tokens al tokenizer, aggiorniamo anche le embedding del modello
-    if model_type == "decoder-only" and tokenizer.pad_token is not None:
-        model.resize_token_embeddings(len(tokenizer))
-    
-    return tokenizer, model
+from architectures.model_bart_base_imdb import BartBaseIMDB
+from architectures.model_bert_base_uncased_imdb import BertBaseUncasedIMDB
+from architectures.model_ensemble_majority_voting import EnsembleMajorityVoting
+from architectures.model_gpt_neo_2_7b_imdb import GPTNeo27BIMDB
+
+def get_model(model_name, **kwargs):
+    """
+    Restituisce un'istanza del modello in base a 'model_name'.
+
+    Parametri:
+      - model_name (str): Uno dei seguenti: 
+          'bert-base-uncased-imdb', 
+          'bart-base-imdb', 
+          'gpt-neo-2.7b-imdb', 
+          'ensemble_majority_voting'
+      - kwargs: Parametri addizionali per la costruzione del modello.
+
+    Ritorna:
+      - Un'istanza della classe modello corrispondente, inizializzata con il repository
+        Hugging Face associato (se necessario) e altri parametri extra.
+    """
+    # Mappa dei nomi dei modelli alle rispettive classi
+    model_map = {
+        "bert-base-uncased-imdb": BertBaseUncasedIMDB,
+        "bart-base-imdb": BartBaseIMDB,
+        "gpt-neo-2.7b-imdb": GPTNeo27BIMDB,
+        "ensemble_majority_voting": EnsembleMajorityVoting,
+    }
+
+    if model_name not in model_map:
+        raise ValueError(
+            f"Modello sconosciuto: {model_name}. I modelli disponibili sono: {list(model_map.keys())}"
+        )
+
+    # Recupera il repository associato al modello (se occorre)
+    repo = MODELS_TO_UPLOAD.get(model_name)
+    # Instanzia il modello passando il repository ed eventuali altri parametri
+    return model_map[model_name](repo=repo, **kwargs)

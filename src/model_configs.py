@@ -21,7 +21,7 @@ MODEL_CONFIGS = {
         'model_name': 'EleutherAI/gpt-neo-2.7B',
         'epochs': 3,
         'train_batch_size': 4,
-        'eval_batch_size': 4,  # Resta basso per ragioni di memoria
+        'eval_batch_size': 4,
         'learning_rate': 1e-5,
         'gradient_accumulation_steps': 4,
         'repo_pretrained': 'models/pretrained/gpt-neo-2.7B',

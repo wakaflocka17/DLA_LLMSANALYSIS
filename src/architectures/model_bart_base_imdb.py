@@ -56,12 +56,11 @@ class BartBaseIMDB:
         """
         logits, labels = eval_pred
 
-        # Se i logits arrivano in formati differenti (list, tuple),
-        # unifica in un array (per sicurezza)
-        if isinstance(logits, (list, tuple)):
-            logits = np.concatenate([np.array(batch) for batch in logits], axis=0)
-        else:
-            logits = np.array(logits, dtype=np.float32)
+        # Conversione diretta a NumPy, con eventuale squeeze se arrivano in 3D
+        logits = np.array(logits, dtype=np.float32)
+        if logits.ndim == 3:
+            # Da shape (batch, num_labels, 1) a (batch, num_labels)
+            logits = np.squeeze(logits, axis=-1)
 
         predictions = np.argmax(logits, axis=-1)
         

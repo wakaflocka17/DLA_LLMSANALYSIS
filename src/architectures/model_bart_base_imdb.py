@@ -52,7 +52,7 @@ class BartBaseIMDB:
         self.test_dataset = test_dataset.map(tokenize_function, batched=True)
 
     def compute_metrics(self, eval_pred):
-        logits = eval_pred.predictions  # Estrae i logits correttamente
+        logits = np.array(eval_pred.predictions) # Estrae i logits correttamente
         labels = eval_pred.label_ids    # Estrae le etichette
     
         print(f"Shape logits: {logits.shape}")  # Debug forma

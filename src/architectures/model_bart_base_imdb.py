@@ -56,9 +56,10 @@ class BartBaseIMDB:
 
     @staticmethod
     def compute_metrics(eval_pred: EvalPrediction):
-        logits = eval_pred.predictions
+        logits = eval_pred.predictions[0] if isinstance(eval_pred.predictions, tuple) else eval_pred.predictions
         labels = eval_pred.label_ids
 
+        print(f"Type of logits: {type(logits)}")
         print(f"Shape logits: {logits.shape}")
         print(f"Shape labels: {labels.shape}")
 

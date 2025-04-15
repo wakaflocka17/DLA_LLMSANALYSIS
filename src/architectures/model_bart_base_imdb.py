@@ -2,6 +2,7 @@ import numpy as np
 import logging
 import os
 from transformers import BartForSequenceClassification, BartTokenizer, Trainer, TrainingArguments
+from transformers.trainer_utils import EvalPrediction
 from src.utils import TqdmLoggingCallback
 from src.data_preprocessing import load_imdb_dataset, create_splits
 from sklearn.metrics import precision_score, recall_score, f1_score, classification_report
@@ -51,8 +52,11 @@ class BartBaseIMDB:
         self.val_dataset = val_dataset.map(tokenize_function, batched=True)
         self.test_dataset = test_dataset.map(tokenize_function, batched=True)
 
-    def compute_metrics(self, eval_pred):
-        logits = eval_pred.predictions  # <-- usa direttamente
+    from transformers.trainer_utils import EvalPrediction
+
+    @staticmethod
+    def compute_metrics(eval_pred: EvalPrediction):
+        logits = eval_pred.predictions
         labels = eval_pred.label_ids
 
         print(f"Shape logits: {logits.shape}")
@@ -65,6 +69,7 @@ class BartBaseIMDB:
         accuracy = np.mean(predictions == labels)
 
         return {"accuracy": accuracy}
+
 
     def evaluate_final(self, model=None):
         """

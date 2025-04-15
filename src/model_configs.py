@@ -20,10 +20,10 @@ MODEL_CONFIGS = {
     'gpt_neo_2_7b': {
         'model_name': 'EleutherAI/gpt-neo-2.7B',
         'epochs': 3,
-        'train_batch_size': 2,
-        'eval_batch_size': 2,
+        'train_batch_size': 1,
+        'eval_batch_size': 1,
         'learning_rate': 1e-5,
-        'gradient_accumulation_steps': 4,
+        'gradient_accumulation_steps': 8,
         'repo_pretrained': 'models/pretrained/gpt-neo-2.7B',
         'repo_finetuned': 'models/finetuned/gpt-neo-2.7B-imdb',
     },

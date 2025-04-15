@@ -1,5 +1,7 @@
 from importlib import import_module
-from src.utils.logger import logger
+
+import logging
+logger = logging.getLogger(__name__)
 
 def get_model(model_config_key):
     """

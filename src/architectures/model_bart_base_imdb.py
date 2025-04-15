@@ -5,6 +5,9 @@ from transformers import BartForSequenceClassification, BartTokenizer, Trainer, 
 from src.utils import TqdmLoggingCallback
 from src.data_preprocessing import load_imdb_dataset
 
+# Import dal modulo sklearn per le metriche
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -48,14 +51,43 @@ class BartBaseIMDB:
         self.eval_dataset = self.eval_dataset.map(tokenize_function, batched=True)
 
     def compute_metrics(self, eval_pred):
+        """
+        Calcola e logga accuracy, precision, recall, F1 e classification_report.
+        """
         logits, labels = eval_pred
+
+        # Se i logits arrivano in formati differenti (list, tuple),
+        # unifica in un array (per sicurezza)
         if isinstance(logits, (list, tuple)):
             logits = np.concatenate([np.array(batch) for batch in logits], axis=0)
         else:
             logits = np.array(logits, dtype=np.float32)
+
         predictions = np.argmax(logits, axis=-1)
+        
         accuracy = np.mean(predictions == labels)
-        return {"accuracy": accuracy}
+        precision = precision_score(labels, predictions, average='binary')
+        recall = recall_score(labels, predictions, average='binary')
+        f1 = f1_score(labels, predictions, average='binary')
+
+        # Calcolo del classification report
+        report = classification_report(
+            labels,
+            predictions,
+            target_names=["negativo", "positivo"],
+            digits=4
+        )
+
+        # Logga il classification report
+        logger.info("\n" + report)
+
+        # Ritorna le metriche principali
+        return {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+        }
 
     def train(self, output_dir: str = "./results", num_train_epochs: int = 3, per_device_train_batch_size: int = 8, **kwargs):
         if self.train_dataset is None or self.eval_dataset is None:
@@ -65,7 +97,7 @@ class BartBaseIMDB:
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
             per_device_train_batch_size=per_device_train_batch_size,
-            evaluation_strategy="epoch",
+            evaluation_strategy="epoch",   # Valutazione a fine epoca
             logging_steps=100,
             save_strategy="epoch",
             load_best_model_at_end=True,
@@ -103,7 +135,6 @@ class BartBaseIMDB:
             self.prepare_datasets()
 
         if os.path.exists(self.repo_finetuned):
-            from transformers import BartForSequenceClassification
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = BartForSequenceClassification.from_pretrained(self.repo_finetuned)
 
@@ -140,9 +171,9 @@ class BartBaseIMDB:
             disable_tqdm=False,
             **kwargs
         )
-        from transformers import BartForSequenceClassification
+        
         logger.info("Valutazione sul modello pre-addestrato...")
-        # Se hai configurato repo_pretrained e la cartella esiste, potresti caricare da lì;
+        # Se hai configurato repo_pretrained e la cartella esiste, carica da lì;
         # altrimenti, carica direttamente dal pretrained_model_name.
         if os.path.exists(self.repo_pretrained):
             pretrained_model = BartForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)

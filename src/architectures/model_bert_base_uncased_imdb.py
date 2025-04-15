@@ -5,6 +5,9 @@ from transformers import BertForSequenceClassification, BertTokenizer, Trainer, 
 from src.utils import TqdmLoggingCallback
 from src.data_preprocessing import load_imdb_dataset
 
+# Import aggiuntivi per metriche
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -49,10 +52,36 @@ class BertBaseUncasedIMDB:
         self.eval_dataset = self.eval_dataset.map(tokenize_function, batched=True)
 
     def compute_metrics(self, eval_pred):
+        """
+        Calcola e logga accuracy, precisione, recall, F1 e classification_report.
+        """
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
+        
+        # Metriche numeriche di base
         accuracy = np.mean(predictions == labels)
-        return {"accuracy": accuracy}
+        precision = precision_score(labels, predictions, average="binary")
+        recall = recall_score(labels, predictions, average="binary")
+        f1 = f1_score(labels, predictions, average="binary")
+
+        # Classification report (stringa con precision, recall, f1 e support per ogni classe)
+        report = classification_report(
+            labels, 
+            predictions, 
+            target_names=["negative", "positive"],  # Le tue classi
+            digits=4
+        )
+        
+        # Log del classification report
+        logger.info("\n" + report)
+
+        # Ritorniamo le metriche principali che vogliamo tracciare
+        return {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+        }
 
     def train(self, output_dir: str = "./results", num_train_epochs: int = 3, per_device_train_batch_size: int = 8, **kwargs):
         if self.train_dataset is None or self.eval_dataset is None:
@@ -62,7 +91,7 @@ class BertBaseUncasedIMDB:
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
             per_device_train_batch_size=per_device_train_batch_size,  # Batch size per training
-            evaluation_strategy="epoch",
+            evaluation_strategy="epoch",  # Esegue evaluation a fine epoca
             logging_steps=100,
             save_strategy="epoch",
             load_best_model_at_end=True,
@@ -139,7 +168,7 @@ class BertBaseUncasedIMDB:
             disable_tqdm=False,
             **kwargs
         )
-        from transformers import BertForSequenceClassification
+        
         logger.info("Valutazione sul modello pre-addestrato...")
         if os.path.exists(self.repo_pretrained):
             pretrained_model = BertForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)

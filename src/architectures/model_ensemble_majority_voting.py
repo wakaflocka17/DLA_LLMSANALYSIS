@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 from transformers import Trainer, TrainingArguments
+from sklearn.metrics import classification_report
 from datasets import load_dataset
 from scipy.stats import mode
 
@@ -109,22 +110,25 @@ class EnsembleMajorityVoting:
         return ensemble_preds.flatten()
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
-        """
-        Valuta l'ensemble effettuando majority voting sulle predizioni dei membri.
-
-        Parametri:
-          - per_device_eval_batch_size (int): Batch size per la valutazione.
-          - kwargs: Parametri aggiuntivi da passare al metodo predict().
-        
-        Ritorna:
-          - Un dizionario con la metrica 'accuracy'.
-        """
         if self.eval_dataset is None:
             self.prepare_datasets()
 
+        # Ottieni le predizioni ensemble
         ensemble_preds = self.predict(per_device_eval_batch_size, **kwargs)
-        # Si assume che la colonna "label" del dataset contenga le etichette vere
+        # Etichette vere
         true_labels = self.eval_dataset["label"]
+
+        # Calcola accuracy di base
         accuracy = np.mean(ensemble_preds == true_labels)
         logger.info(f"Ensemble evaluation accuracy: {accuracy}")
+
+        # (Opzionale) Calcola classification report
+        report = classification_report(
+            true_labels,
+            ensemble_preds,
+            target_names=["negativo", "positivo"],  # O le classi che stai usando
+            digits=4
+        )
+        logger.info("\n" + report)
+
         return {"accuracy": accuracy}

@@ -5,6 +5,9 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trai
 from src.utils import TqdmLoggingCallback
 from src.data_preprocessing import load_imdb_dataset
 
+# Import aggiuntivi da sklearn per calcolare classification report e metriche
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -51,10 +54,36 @@ class GPTNeo27BIMDB:
         self.eval_dataset = self.eval_dataset.map(tokenize_function, batched=True)
 
     def compute_metrics(self, eval_pred):
+        """
+        Calcola e logga il classification report (precision, recall, f1) e accuracy.
+        """
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
+
+        # Calcolo metriche principali
         accuracy = np.mean(predictions == labels)
-        return {"accuracy": accuracy}
+        precision = precision_score(labels, predictions, average="binary")
+        recall = recall_score(labels, predictions, average="binary")
+        f1 = f1_score(labels, predictions, average="binary")
+
+        # Calcolo del classification report
+        report = classification_report(
+            labels,
+            predictions,
+            target_names=["negativo", "positivo"],  # etichette IMDB tipiche
+            digits=4
+        )
+
+        # Log del report
+        logger.info("\n" + report)
+
+        # Ritorno delle metriche numeriche (Trainer le traccia)
+        return {
+            "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1
+        }
 
     def train(self, output_dir: str = "./results", num_train_epochs: int = 3, per_device_train_batch_size: int = 8, **kwargs):
         """
@@ -107,7 +136,6 @@ class GPTNeo27BIMDB:
             self.prepare_datasets()
 
         if os.path.exists(self.repo_finetuned):
-            from transformers import AutoModelForSequenceClassification
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = AutoModelForSequenceClassification.from_pretrained(self.repo_finetuned)
 
@@ -145,7 +173,7 @@ class GPTNeo27BIMDB:
             disable_tqdm=False,
             **kwargs
         )
-        from transformers import AutoModelForSequenceClassification
+
         logger.info("Valutazione sul modello pre-addestrato...")
         if os.path.exists(self.repo_pretrained):
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)

@@ -3,7 +3,7 @@ import logging
 import os
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 from src.utils import TqdmLoggingCallback
-from src.data_preprocessing import load_imdb_dataset
+from src.data_preprocessing import load_imdb_dataset, create_splits
 
 # Import aggiuntivi da sklearn per calcolare classification report e metriche
 from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
@@ -31,16 +31,17 @@ class GPTNeo27BIMDB:
         # Carica il modello per la sequence classification (num_labels=2 per classificazione binaria)
         self.model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_name, num_labels=2)
         self.train_dataset = None
-        self.eval_dataset = None
+        self.val_dataset = None
+        self.test_dataset = None
 
-    def prepare_datasets(self, dataset_name: str = "imdb", split_train: str = "train", split_test: str = "test", max_samples: int = None):
-        dataset = load_imdb_dataset()
+    def prepare_datasets(self, max_samples: int = None):
+        full_dataset = load_imdb_dataset()
+        train_dataset, val_dataset, test_dataset = create_splits(full_dataset)
+
         if max_samples:
-            self.train_dataset = dataset[split_train].shuffle(seed=42).select(range(max_samples))
-            self.eval_dataset = dataset[split_test].shuffle(seed=42).select(range(max_samples))
-        else:
-            self.train_dataset = dataset[split_train]
-            self.eval_dataset = dataset[split_test]
+            train_dataset = train_dataset.shuffle(seed=42).select(range(max_samples))
+            val_dataset = val_dataset.shuffle(seed=42).select(range(max_samples))
+            test_dataset = test_dataset.shuffle(seed=42).select(range(max_samples))
 
         def tokenize_function(examples):
             return self.tokenizer(
@@ -49,10 +50,11 @@ class GPTNeo27BIMDB:
                 padding="max_length",
                 max_length=128
             )
-        
-        self.train_dataset = self.train_dataset.map(tokenize_function, batched=True)
-        self.eval_dataset = self.eval_dataset.map(tokenize_function, batched=True)
 
+        self.train_dataset = train_dataset.map(tokenize_function, batched=True)
+        self.val_dataset = val_dataset.map(tokenize_function, batched=True)
+        self.test_dataset = test_dataset.map(tokenize_function, batched=True)
+        
     def compute_metrics(self, eval_pred):
         """
         Versione ottimizzata che calcola solo accuracy durante il training
@@ -71,53 +73,48 @@ class GPTNeo27BIMDB:
     
     def evaluate_final(self, model=None):
         """
-        Esegue il calcolo completo delle metriche e logga il classification report una sola volta,
-        a fine training o quando richiesto esplicitamente.
+        Esegue il calcolo completo delle metriche e logga il classification report sul test set.
         """
-        if self.eval_dataset is None:
+        if self.test_dataset is None:
             self.prepare_datasets()
             
-        # Usa il modello fornito o quello corrente
         eval_model = model if model is not None else self.model
-            
+
         eval_args = TrainingArguments(
             output_dir="./results",
             per_device_eval_batch_size=8,
             disable_tqdm=True
         )
-        
-        # Creiamo un Trainer "al volo" per utilizzare il metodo predict
+
         trainer = Trainer(
             model=eval_model,
             args=eval_args,
-            eval_dataset=self.eval_dataset,
+            eval_dataset=self.test_dataset,
             tokenizer=self.tokenizer
         )
-        
-        logger.info("Esecuzione valutazione finale completa...")
-        predictions_output = trainer.predict(self.eval_dataset)
+
+        logger.info("Esecuzione valutazione finale completa sul test set...")
+        predictions_output = trainer.predict(self.test_dataset)
         preds = predictions_output.predictions
         labels = predictions_output.label_ids
-        
+
         final_predictions = np.argmax(preds, axis=-1)
-        
-        # Calcola tutte le metriche complete
+
         accuracy = np.mean(final_predictions == labels)
         precision = precision_score(labels, final_predictions, average="binary")
         recall = recall_score(labels, final_predictions, average="binary")
         f1 = f1_score(labels, final_predictions, average="binary")
-        
-        logger.info(f"\nMetriche finali complete:\nAccuracy: {accuracy:.4f}\nPrecision: {precision:.4f}\nRecall: {recall:.4f}\nF1 Score: {f1:.4f}")
-        
-        # Classification report dettagliato
+
+        logger.info(f"\nMetriche finali complete (test set):\nAccuracy: {accuracy:.4f}\nPrecision: {precision:.4f}\nRecall: {recall:.4f}\nF1 Score: {f1:.4f}")
+
         report = classification_report(
             labels,
             final_predictions,
             target_names=["negativo", "positivo"],
             digits=4
         )
-        logger.info("\nClassification Report Finale:\n" + report)
-        
+        logger.info("\nClassification Report Test:\n" + report)
+
         return {
             "accuracy": accuracy,
             "precision": precision,
@@ -153,7 +150,7 @@ class GPTNeo27BIMDB:
             model=self.model,
             args=training_args,
             train_dataset=self.train_dataset,
-            eval_dataset=self.eval_dataset,
+            eval_dataset=self.val_dataset,
             tokenizer=self.tokenizer,
             compute_metrics=self.compute_metrics,
             callbacks=[tqdm_callback]
@@ -167,10 +164,6 @@ class GPTNeo27BIMDB:
             logger.info(f"Training completato con metriche finali: {final_log}")
         else:
             logger.info("Training completato senza log di metriche finali.")
-        
-        # Esegui la valutazione finale completa
-        logger.info("Esecuzione valutazione finale completa dopo il training...")
-        self.evaluate_final()
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
         """

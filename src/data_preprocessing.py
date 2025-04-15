@@ -87,7 +87,6 @@ def load_imdb_dataset():
     
     return dataset
 
-
 def create_splits(dataset, val_ratio=0.2, seed=42):
     """
     Suddivide il dataset di training in train + validation (es. 80-20).

@@ -31,6 +31,8 @@ class GPTNeo27BIMDB:
         # Carica il modello per la sequence classification (num_labels=2 per classificazione binaria)
         self.model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_name, num_labels=2)
         self.model.config.pad_token_id = self.tokenizer.pad_token_id
+        logger.info(f"PAD token id (tokenizer): {self.tokenizer.pad_token_id}")
+        logger.info(f"PAD token id (model config): {self.model.config.pad_token_id}")
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None

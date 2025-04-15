@@ -10,7 +10,7 @@ from sklearn.metrics import classification_report, precision_score, recall_score
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-class BertBaseIMDB:
+class BertBaseUncasedIMDB:
     def __init__(self, repo_finetuned: str, repo_pretrained: str, pretrained_model_name: str = "bert-base-uncased", **kwargs):
         self.repo_finetuned = repo_finetuned
         self.repo_pretrained = repo_pretrained

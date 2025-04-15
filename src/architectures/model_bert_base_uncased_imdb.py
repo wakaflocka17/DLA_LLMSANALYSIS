@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import os
+import json
 from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
 from src.utils import TqdmLoggingCallback
 from src.data_preprocessing import load_imdb_dataset, create_splits
@@ -121,7 +122,7 @@ class BertBaseIMDB:
 
         return {"accuracy": accuracy, "precision": precision, "recall": recall, "f1": f1}
 
-    def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
+    def evaluate(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         if self.test_dataset is None:
             self.prepare_datasets()
 
@@ -130,9 +131,17 @@ class BertBaseIMDB:
             self.model = BertForSequenceClassification.from_pretrained(self.repo_finetuned)
 
         logger.info("Inizio valutazione completa (fine-tunato)...")
-        return self.evaluate_final()
+        
+        results = self.evaluate_final()   # {"accuracy": ..., "precision": ..., "recall": ..., "f1": ...}
 
-    def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, **kwargs):
+        if output_json_path:
+            with open(output_json_path, "w") as f:
+                json.dump(results, f, indent=4)
+            logger.info(f"Saved fine-tuned evaluation results to {output_json_path}")
+
+        return results
+
+    def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         if self.test_dataset is None:
             self.prepare_datasets()
 
@@ -144,4 +153,11 @@ class BertBaseIMDB:
             pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
 
-        return self.evaluate_final(model=pretrained_model)
+        final_results = self.evaluate_final(model=pretrained_model)
+
+        if output_json_path:
+            with open(output_json_path, "w") as f:
+                json.dump(final_results, f, indent=4)
+            logger.info(f"Saved pretrained evaluation results to {output_json_path}")
+
+        return final_results

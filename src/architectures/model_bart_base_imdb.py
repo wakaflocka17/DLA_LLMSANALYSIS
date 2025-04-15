@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import os
+import json
 from transformers import BartForSequenceClassification, BartTokenizer, Trainer, TrainingArguments
 from transformers.trainer_utils import EvalPrediction
 from src.utils import TqdmLoggingCallback
@@ -157,7 +158,7 @@ class BartBaseIMDB:
         else:
             logger.info("Training completato senza log di metriche finali.")
 
-    def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
+    def evaluate(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         """
         Valuta il modello fine-tunato salvato in self.repo_finetuned sul test set.
         """
@@ -182,9 +183,15 @@ class BartBaseIMDB:
         logger.info("Inizio valutazione sul test set (modello fine-tunato)...")
         results = trainer.evaluate()
         logger.info(f"Valutazione completata con risultati: {results}")
+
+        if output_json_path:
+            with open(output_json_path, "w") as f:
+                json.dump(results, f, indent=4)
+            logger.info(f"Saved fine-tuned evaluation results to {output_json_path}")
+
         return results
 
-    def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, **kwargs):
+    def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         """
         Valuta il modello pre-addestrato (senza fine-tuning) sul test set.
         """
@@ -213,4 +220,10 @@ class BartBaseIMDB:
         logger.info("Inizio valutazione sul test set (modello pre-addestrato)...")
         results = trainer.evaluate()
         logger.info(f"Valutazione completata con risultati: {results}")
+        
+        if output_json_path:
+            with open(output_json_path, "w") as f:
+                json.dump(results, f, indent=4)
+            logger.info(f"Saved pretrained evaluation results to {output_json_path}")
+
         return results

@@ -38,6 +38,12 @@ class GPTNeo27BIMDB:
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None
+        self.freeze_layers(20)
+
+    def freeze_layers(self, n_freeze=20):
+        logger.info(f"Congelo i primi {n_freeze} blocchi di GPT-Neo.")
+        for param in self.model.transformer.h[:n_freeze].parameters():
+            param.requires_grad = False
 
     def prepare_datasets(self, max_samples: int = None):
         full_dataset = load_imdb_dataset()
@@ -53,7 +59,7 @@ class GPTNeo27BIMDB:
                 examples["text"],
                 truncation=True,
                 padding="max_length",
-                max_length=128
+                max_length=64
             )
 
         self.train_dataset = train_dataset.map(tokenize_function, batched=True)
@@ -139,6 +145,7 @@ class GPTNeo27BIMDB:
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
             per_device_train_batch_size=per_device_train_batch_size,
+            bf16=True,
             evaluation_strategy="epoch",
             logging_steps=100,
             save_strategy="epoch",

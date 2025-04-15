@@ -27,6 +27,8 @@ def main():
                         help="Batch size per dispositivo durante l'evaluation.")
     parser.add_argument("--max_samples", type=int, default=None,
                         help="Numero massimo di campioni da usare (utile per debug).")
+    parser.add_argument("--output_json_path", type=str, default=None,
+                    help="Percorso del file JSON in cui salvare i risultati di evaluation.")
     args = parser.parse_args()
 
     # Se esiste una configurazione per il modello, usiamo i valori di default se non specificati
@@ -63,9 +65,15 @@ def main():
         logger.info(f"Modalità EVAL: avvio dell'evaluation per il modello {args.model_config_key}.")
         # Differenziamo se si vuole valutare il modello pre-addestrato o quello fine-tunato.
         if args.eval_type == "fine_tuned":
-            result = model.evaluate(per_device_eval_batch_size=args.eval_batch_size)
+            result = model.evaluate(
+                per_device_eval_batch_size=args.eval_batch_size,
+                output_json_path=args.output_json_path
+            )
         else:
-            result = model.evaluate_pretrained(per_device_eval_batch_size=args.eval_batch_size)
+            result = model.evaluate_pretrained(
+                per_device_eval_batch_size=args.eval_batch_size,
+                output_json_path=args.output_json_path
+            )
         logger.info(f"Risultati evaluation: {result}")
 
 if __name__ == "__main__":

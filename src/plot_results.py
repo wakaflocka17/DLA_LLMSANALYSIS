@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def load_results(results_file):
     """
-    Load results from a JSON file.
+    Carica i risultati da un file JSON.
     """
     try:
         with open(results_file, 'r') as f:
@@ -23,100 +23,80 @@ def load_results(results_file):
 
 def plot_metrics(results, output_dir):
     """
-    Plot accuracy and F1 scores for different models.
+    Si aspetta un dizionario con questa struttura:
+    {
+       "bart": {
+          "finetuned": { "accuracy": 0.9,  "f1": 0.87, ... },
+          "pretrained": { "accuracy": 0.75, "f1": 0.72, ... }
+       },
+       "gpt-neo": {
+          "finetuned":   { "accuracy": 0.88, "f1": 0.84, ... },
+          "pretrained":  { "accuracy": 0.71, "f1": 0.70, ... }
+       }
+    }
     """
     if not results:
-        logging.error("No results to plot")
+        logging.error("No results to plot. Check your JSON structure or input file.")
         return
     
-    # Create output directory if it doesn't exist
+    # Creiamo la cartella di output se non esiste
     os.makedirs(output_dir, exist_ok=True)
     
-    # Extract model names and metrics
-    model_names = list(results.keys())
-    accuracies = [results[model]['accuracy'] for model in model_names]
-    f1_scores = [results[model]['f1'] for model in model_names]
+    # Estraggo i nomi dei modelli
+    model_names = list(results.keys())  # Esempio: ["bart", "gpt-neo-2.7b", ...]
     
-    # Set up the figure with two subplots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    # Liste per accuracy finetuned e pretrained
+    accuracies_finetuned = []
+    accuracies_pretrained = []
     
-    # Plot accuracy
-    bars1 = ax1.bar(model_names, accuracies, color='skyblue')
-    ax1.set_title('Accuracy by Model')
-    ax1.set_xlabel('Model')
-    ax1.set_ylabel('Accuracy')
-    ax1.set_ylim(0, 1.0)
-    ax1.grid(axis='y', linestyle='--', alpha=0.7)
+    for model_name in model_names:
+        # Recuperiamo i risultati "finetuned" e "pretrained" (se presenti)
+        ft_metrics = results[model_name].get("finetuned", {})
+        pt_metrics = results[model_name].get("pretrained", {})
+        
+        accuracies_finetuned.append(ft_metrics.get("accuracy", 0.0))
+        accuracies_pretrained.append(pt_metrics.get("accuracy", 0.0))
     
-    # Add value labels on bars
-    for bar in bars1:
-        height = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                f'{height:.4f}', ha='center', va='bottom', rotation=0)
-    
-    # Plot F1 scores
-    bars2 = ax2.bar(model_names, f1_scores, color='lightgreen')
-    ax2.set_title('F1 Score by Model')
-    ax2.set_xlabel('Model')
-    ax2.set_ylabel('F1 Score')
-    ax2.set_ylim(0, 1.0)
-    ax2.grid(axis='y', linestyle='--', alpha=0.7)
-    
-    # Add value labels on bars
-    for bar in bars2:
-        height = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                f'{height:.4f}', ha='center', va='bottom', rotation=0)
-    
-    # Adjust layout and save
-    plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, 'model_comparison.png'), dpi=300, bbox_inches='tight')
-    logging.info(f"Plot saved to {os.path.join(output_dir, 'model_comparison.png')}")
-    
-    # Create a combined metrics plot
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
+    # Creiamo un grafico a barre per confrontare l'Accuracy (finetuned vs pretrained)
     x = np.arange(len(model_names))
-    width = 0.35
+    width = 0.3
+
+    fig, ax = plt.subplots(figsize=(10, 6))
     
-    bars1 = ax.bar(x - width/2, accuracies, width, label='Accuracy', color='skyblue')
-    bars2 = ax.bar(x + width/2, f1_scores, width, label='F1 Score', color='lightgreen')
-    
-    ax.set_title('Model Performance Comparison')
-    ax.set_xlabel('Model')
-    ax.set_ylabel('Score')
+    bars_ft = ax.bar(x - width/2, accuracies_finetuned, width, label='Finetuned')
+    bars_pt = ax.bar(x + width/2, accuracies_pretrained, width, label='Pretrained')
+
     ax.set_xticks(x)
-    ax.set_xticklabels(model_names)
-    ax.legend()
+    ax.set_xticklabels(model_names, rotation=20, ha='right')  # Rotazione se i nomi sono lunghi
     ax.set_ylim(0, 1.0)
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    ax.set_ylabel("Accuracy")
+    ax.set_title("Comparison of Accuracy: Finetuned vs Pretrained")
+    ax.legend()
     
-    # Add value labels
-    for bars in [bars1, bars2]:
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                    f'{height:.4f}', ha='center', va='bottom', rotation=0)
-    
+    # Aggiunge le label con il valore sulle barre
+    for bar in bars_ft + bars_pt:
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                f'{height:.2f}', ha='center', va='bottom', rotation=0)
+
     plt.tight_layout()
-    fig.savefig(os.path.join(output_dir, 'combined_metrics.png'), dpi=300, bbox_inches='tight')
-    logging.info(f"Combined plot saved to {os.path.join(output_dir, 'combined_metrics.png')}")
-    
-    # Show plots if running in interactive mode
+    plot_path = os.path.join(output_dir, "accuracy_comparison.png")
+    plt.savefig(plot_path, dpi=300)
     plt.show()
+    logging.info(f"Plot saved to: {plot_path}")
 
 def main():
     parser = argparse.ArgumentParser(description='Plot model evaluation results')
-    parser.add_argument('--results_file', type=str, default='results.json', 
-                        help='JSON file containing model evaluation results')
+    parser.add_argument('--results_file', type=str, default='results_aggregati.json', 
+                        help='JSON file containing aggregated model evaluation results')
     parser.add_argument('--output_dir', type=str, default='plots',
                         help='Directory to save plots')
     args = parser.parse_args()
     
-    # Load results
+    # Carichiamo il JSON aggregato
     results = load_results(args.results_file)
     
-    # Plot metrics
+    # Generiamo il grafico
     plot_metrics(results, args.output_dir)
 
 if __name__ == '__main__':

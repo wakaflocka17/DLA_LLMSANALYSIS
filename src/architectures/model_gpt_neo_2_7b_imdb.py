@@ -55,29 +55,69 @@ class GPTNeo27BIMDB:
 
     def compute_metrics(self, eval_pred):
         """
-        Calcola e logga il classification report (precision, recall, f1) e accuracy.
+        Versione ottimizzata che calcola solo accuracy durante il training
+        per velocizzare la valutazione tra le epoche.
         """
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
-
-        # Calcolo metriche principali
+        
+        # Calcola solo accuracy per velocizzare la valutazione durante il training
         accuracy = np.mean(predictions == labels)
-        precision = precision_score(labels, predictions, average="binary")
-        recall = recall_score(labels, predictions, average="binary")
-        f1 = f1_score(labels, predictions, average="binary")
-
-        # Calcolo del classification report
+        
+        # Ritorna solo accuracy per il monitoraggio durante il training
+        return {
+            "accuracy": accuracy
+        }
+    
+    def evaluate_final(self, model=None):
+        """
+        Esegue il calcolo completo delle metriche e logga il classification report una sola volta,
+        a fine training o quando richiesto esplicitamente.
+        """
+        if self.eval_dataset is None:
+            self.prepare_datasets()
+            
+        # Usa il modello fornito o quello corrente
+        eval_model = model if model is not None else self.model
+            
+        eval_args = TrainingArguments(
+            output_dir="./results",
+            per_device_eval_batch_size=8,
+            disable_tqdm=True
+        )
+        
+        # Creiamo un Trainer "al volo" per utilizzare il metodo predict
+        trainer = Trainer(
+            model=eval_model,
+            args=eval_args,
+            eval_dataset=self.eval_dataset,
+            tokenizer=self.tokenizer
+        )
+        
+        logger.info("Esecuzione valutazione finale completa...")
+        predictions_output = trainer.predict(self.eval_dataset)
+        preds = predictions_output.predictions
+        labels = predictions_output.label_ids
+        
+        final_predictions = np.argmax(preds, axis=-1)
+        
+        # Calcola tutte le metriche complete
+        accuracy = np.mean(final_predictions == labels)
+        precision = precision_score(labels, final_predictions, average="binary")
+        recall = recall_score(labels, final_predictions, average="binary")
+        f1 = f1_score(labels, final_predictions, average="binary")
+        
+        logger.info(f"\nMetriche finali complete:\nAccuracy: {accuracy:.4f}\nPrecision: {precision:.4f}\nRecall: {recall:.4f}\nF1 Score: {f1:.4f}")
+        
+        # Classification report dettagliato
         report = classification_report(
             labels,
-            predictions,
-            target_names=["negativo", "positivo"],  # etichette IMDB tipiche
+            final_predictions,
+            target_names=["negativo", "positivo"],
             digits=4
         )
-
-        # Log del report
-        logger.info("\n" + report)
-
-        # Ritorno delle metriche numeriche (Trainer le traccia)
+        logger.info("\nClassification Report Finale:\n" + report)
+        
         return {
             "accuracy": accuracy,
             "precision": precision,
@@ -127,6 +167,10 @@ class GPTNeo27BIMDB:
             logger.info(f"Training completato con metriche finali: {final_log}")
         else:
             logger.info("Training completato senza log di metriche finali.")
+        
+        # Esegui la valutazione finale completa
+        logger.info("Esecuzione valutazione finale completa dopo il training...")
+        self.evaluate_final()
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
@@ -139,22 +183,9 @@ class GPTNeo27BIMDB:
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = AutoModelForSequenceClassification.from_pretrained(self.repo_finetuned)
 
-        eval_args = TrainingArguments(
-            output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
-            disable_tqdm=False,
-            **kwargs
-        )
-
-        trainer = Trainer(
-            model=self.model,
-            args=eval_args,
-            eval_dataset=self.eval_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
-        logger.info("Inizio valutazione (fine-tunato)...")
-        results = trainer.evaluate()
+        # Esegui direttamente la valutazione finale completa
+        logger.info("Inizio valutazione completa (fine-tunato)...")
+        results = self.evaluate_final()
         logger.info(f"Valutazione completata con risultati: {results}")
         return results
 
@@ -167,13 +198,6 @@ class GPTNeo27BIMDB:
         if self.eval_dataset is None:
             self.prepare_datasets()
 
-        eval_args = TrainingArguments(
-            output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
-            disable_tqdm=False,
-            **kwargs
-        )
-
         logger.info("Valutazione sul modello pre-addestrato...")
         if os.path.exists(self.repo_pretrained):
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)
@@ -181,15 +205,9 @@ class GPTNeo27BIMDB:
         else:
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
-            
-        trainer = Trainer(
-            model=pretrained_model,
-            args=eval_args,
-            eval_dataset=self.eval_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
-        logger.info("Inizio valutazione (pre-addestrato)...")
-        results = trainer.evaluate()
+        
+        # Esegui la valutazione finale completa sul modello pre-addestrato
+        logger.info("Inizio valutazione completa (pre-addestrato)...")
+        results = self.evaluate_final(model=pretrained_model)
         logger.info(f"Valutazione completata con risultati: {results}")
         return results

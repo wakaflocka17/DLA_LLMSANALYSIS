@@ -9,10 +9,21 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 class BertBaseUncasedIMDB:
-    def __init__(self, repo: str, pretrained_model_name: str = "bert-base-uncased", **kwargs):
-        self.repo = repo
+    def __init__(self, repo_finetuned: str, repo_pretrained: str, pretrained_model_name: str = "bert-base-uncased", **kwargs):
+        """
+        Inizializza il modello BERT per la classificazione sul dataset IMDB.
+        
+        Parametri:
+          - repo_finetuned (str): Repository in cui salvare il modello fine-tunato.
+          - repo_pretrained (str): Repository (locale) da cui recuperare il modello pre-addestrato (se desiderato).
+          - pretrained_model_name (str): Nome del modello pre-addestrato da caricare.
+          - kwargs: Parametri aggiuntivi opzionali.
+        """
+        self.repo_finetuned = repo_finetuned
+        self.repo_pretrained = repo_pretrained
         self.pretrained_model_name = pretrained_model_name
         self.tokenizer = BertTokenizer.from_pretrained(pretrained_model_name)
+        # Imposta il modello per la classificazione binaria: num_labels=2
         self.model = BertForSequenceClassification.from_pretrained(pretrained_model_name, num_labels=2)
         self.train_dataset = None
         self.eval_dataset = None
@@ -50,13 +61,13 @@ class BertBaseUncasedIMDB:
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=per_device_train_batch_size,  # Training batch size
+            per_device_train_batch_size=per_device_train_batch_size,  # Batch size per training
             evaluation_strategy="epoch",
+            logging_steps=100,
             save_strategy="epoch",
             load_best_model_at_end=True,
             metric_for_best_model="accuracy",
             greater_is_better=True,
-            logging_steps=100,
             disable_tqdm=True,
             **kwargs
         )
@@ -74,7 +85,8 @@ class BertBaseUncasedIMDB:
         )
 
         trainer.train()
-        trainer.save_model(self.repo)
+        # Salva il modello fine-tunato nella cartella repo_finetuned
+        trainer.save_model(self.repo_finetuned)
         if trainer.state.log_history:
             final_log = trainer.state.log_history[-1]
             logger.info(f"Training completato con metriche finali: {final_log}")
@@ -82,22 +94,24 @@ class BertBaseUncasedIMDB:
             logger.info("Training completato senza log di metriche finali.")
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
-        # Valutazione per il modello fine-tunato: se esiste la directory repo, carico i pesi aggiornati.
+        """
+        Valuta il modello fine-tunato:
+          - Se esiste la directory repo_finetuned, carica il modello da lì.
+        """
         if self.eval_dataset is None:
             self.prepare_datasets()
 
-        if os.path.exists(self.repo):
+        if os.path.exists(self.repo_finetuned):
             from transformers import BertForSequenceClassification
-            logger.info(f"Carico il modello fine-tunato da {self.repo}")
-            self.model = BertForSequenceClassification.from_pretrained(self.repo)
+            logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
+            self.model = BertForSequenceClassification.from_pretrained(self.repo_finetuned)
 
         eval_args = TrainingArguments(
             output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,  # Evaluation batch size
+            per_device_eval_batch_size=per_device_eval_batch_size,  # Batch size per evaluation
             disable_tqdm=False,
             **kwargs
         )
-
         trainer = Trainer(
             model=self.model,
             args=eval_args,
@@ -111,7 +125,11 @@ class BertBaseUncasedIMDB:
         return results
 
     def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, **kwargs):
-        # Valutazione per il modello pre-addestrato: uso un'istanza ricaricata dalla sorgente originale.
+        """
+        Valuta il modello pre-addestrato:
+          - Se la directory repo_pretrained esiste, carica il modello da lì,
+            altrimenti carica direttamente dal pretrained_model_name.
+        """
         if self.eval_dataset is None:
             self.prepare_datasets()
 
@@ -121,11 +139,15 @@ class BertBaseUncasedIMDB:
             disable_tqdm=False,
             **kwargs
         )
-
         from transformers import BertForSequenceClassification
         logger.info("Valutazione sul modello pre-addestrato...")
-        pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
-        
+        if os.path.exists(self.repo_pretrained):
+            pretrained_model = BertForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)
+            logger.info(f"Carico il modello pre-addestrato da {self.repo_pretrained}")
+        else:
+            pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
+            logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
+            
         trainer = Trainer(
             model=pretrained_model,
             args=eval_args,

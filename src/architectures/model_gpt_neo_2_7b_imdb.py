@@ -9,35 +9,28 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 class GPTNeo27BIMDB:
-    def __init__(self, repo: str, pretrained_model_name: str = "EleutherAI/gpt-neo-2.7B", **kwargs):
+    def __init__(self, repo_finetuned: str, repo_pretrained: str, pretrained_model_name: str = "EleutherAI/gpt-neo-2.7B", **kwargs):
         """
         Inizializza il modello GPT-Neo 2.7B per la classificazione sul dataset IMDB.
         
         Parametri:
-          - repo (str): Repository Hugging Face dove salvare il modello fine-tunato.
-          - pretrained_model_name (str): Nome del modello pre-addestrato (default "EleutherAI/gpt-neo-2.7B").
+          - repo_finetuned (str): Repository in cui salvare il modello fine-tunato.
+          - repo_pretrained (str): Repository (locale) da cui recuperare il modello pre-addestrato (se desiderato).
+          - pretrained_model_name (str): Nome del modello pre-addestrato da caricare.
           - kwargs: Parametri aggiuntivi opzionali.
         """
-        self.repo = repo
+        self.repo_finetuned = repo_finetuned
+        self.repo_pretrained = repo_pretrained
         self.pretrained_model_name = pretrained_model_name
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
         # Impostiamo il token di padding (usiamo eos_token)
         self.tokenizer.pad_token = self.tokenizer.eos_token
-        # Carica il modello per la sequence classification; num_labels=2 per classificazione binaria
+        # Carica il modello per la sequence classification (num_labels=2 per classificazione binaria)
         self.model = AutoModelForSequenceClassification.from_pretrained(pretrained_model_name, num_labels=2)
         self.train_dataset = None
         self.eval_dataset = None
 
     def prepare_datasets(self, dataset_name: str = "imdb", split_train: str = "train", split_test: str = "test", max_samples: int = None):
-        """
-        Carica e prepara i dataset per training ed evaluation.
-        
-        Parametri:
-          - dataset_name (str): Nome del dataset (default "imdb").
-          - split_train (str): Nome dello split per il training.
-          - split_test (str): Nome dello split per l'evaluation.
-          - max_samples (int): Limita il numero di campioni (utile per debug).
-        """
         dataset = load_imdb_dataset()
         if max_samples:
             self.train_dataset = dataset[split_train].shuffle(seed=42).select(range(max_samples))
@@ -58,14 +51,6 @@ class GPTNeo27BIMDB:
         self.eval_dataset = self.eval_dataset.map(tokenize_function, batched=True)
 
     def compute_metrics(self, eval_pred):
-        """
-        Calcola le metriche di valutazione (ad es. accuratezza).
-        
-        Parametri:
-          - eval_pred: Tuple (logits, labels) fornito dal Trainer.
-        Ritorna:
-          - Un dizionario contenente le metriche.
-        """
         logits, labels = eval_pred
         predictions = np.argmax(logits, axis=-1)
         accuracy = np.mean(predictions == labels)
@@ -73,13 +58,8 @@ class GPTNeo27BIMDB:
 
     def train(self, output_dir: str = "./results", num_train_epochs: int = 3, per_device_train_batch_size: int = 8, **kwargs):
         """
-        Avvia il training del modello con logging dettagliato e progress bar.
-        
-        Parametri:
-          - output_dir (str): Directory per salvare i risultati.
-          - num_train_epochs (int): Numero di epoche di training.
-          - per_device_train_batch_size (int): Batch size per dispositivo durante il training.
-          - kwargs: Parametri aggiuntivi per TrainingArguments.
+        Esegue il training del modello fine-tunato.
+        Al termine, salva i pesi nella directory repo_finetuned.
         """
         if self.train_dataset is None or self.eval_dataset is None:
             self.prepare_datasets()
@@ -87,13 +67,13 @@ class GPTNeo27BIMDB:
         training_args = TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=num_train_epochs,
-            per_device_train_batch_size=per_device_train_batch_size,  # Batch size per il training
+            per_device_train_batch_size=per_device_train_batch_size,
             evaluation_strategy="epoch",
+            logging_steps=100,
             save_strategy="epoch",
             load_best_model_at_end=True,
             metric_for_best_model="accuracy",
             greater_is_better=True,
-            logging_steps=100,
             disable_tqdm=True,
             **kwargs
         )
@@ -111,7 +91,8 @@ class GPTNeo27BIMDB:
         )
 
         trainer.train()
-        trainer.save_model(self.repo)
+        # Salva il modello fine-tunato nella directory repo_finetuned
+        trainer.save_model(self.repo_finetuned)
         if trainer.state.log_history:
             final_log = trainer.state.log_history[-1]
             logger.info(f"Training completato con metriche finali: {final_log}")
@@ -120,28 +101,19 @@ class GPTNeo27BIMDB:
 
     def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
-        Esegue l'evaluation sul modello fine-tunato: se esiste la directory dei pesi, li carica e usa
-        il modello fine-tunato per eseguire l'evaluation.
-        
-        Parametri:
-          - per_device_eval_batch_size (int): Batch size per dispositivo durante l'evaluation.
-          - kwargs: Parametri aggiuntivi per TrainingArguments.
-        
-        Ritorna:
-          - Un dizionario contenente le metriche di evaluation.
+        Valuta il modello fine-tunato: se la directory repo_finetuned esiste, carica i pesi da lì.
         """
         if self.eval_dataset is None:
             self.prepare_datasets()
 
-        # Se la directory fine-tunata esiste, carica i pesi aggiornati
-        if os.path.exists(self.repo):
+        if os.path.exists(self.repo_finetuned):
             from transformers import AutoModelForSequenceClassification
-            logger.info(f"Carico il modello fine-tunato da {self.repo}")
-            self.model = AutoModelForSequenceClassification.from_pretrained(self.repo)
+            logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
+            self.model = AutoModelForSequenceClassification.from_pretrained(self.repo_finetuned)
 
         eval_args = TrainingArguments(
             output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,  # Batch size per l'evaluation
+            per_device_eval_batch_size=per_device_eval_batch_size,
             disable_tqdm=False,
             **kwargs
         )
@@ -160,14 +132,9 @@ class GPTNeo27BIMDB:
 
     def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, **kwargs):
         """
-        Esegue l'evaluation sul modello pre-addestrato, senza caricare i pesi fine-tunati.
-        
-        Parametri:
-          - per_device_eval_batch_size (int): Batch size per dispositivo durante l'evaluation.
-          - kwargs: Parametri aggiuntivi per TrainingArguments.
-        
-        Ritorna:
-          - Un dizionario contenente le metriche di evaluation.
+        Valuta il modello pre-addestrato:
+          - Se la directory repo_pretrained esiste, la usa (se vuoi salvare localmente il pre-addestrato),
+            altrimenti carica direttamente dal pretrained_model_name.
         """
         if self.eval_dataset is None:
             self.prepare_datasets()
@@ -180,8 +147,13 @@ class GPTNeo27BIMDB:
         )
         from transformers import AutoModelForSequenceClassification
         logger.info("Valutazione sul modello pre-addestrato...")
-        pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
-        
+        if os.path.exists(self.repo_pretrained):
+            pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)
+            logger.info(f"Carico il modello pre-addestrato da {self.repo_pretrained}")
+        else:
+            pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
+            logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
+            
         trainer = Trainer(
             model=pretrained_model,
             args=eval_args,

@@ -1,16 +1,3 @@
-import logging
-import os
-import sys
-from importlib import import_module
-
-# Since architectures is inside src, we don't need to modify sys.path
-# We can remove these lines:
-# project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# if project_root not in sys.path:
-#     sys.path.insert(0, project_root)
-
-logger = logging.getLogger(__name__)
-
 def get_model(model_config_key):
     """
     Factory function to create model instances based on configuration key.
@@ -39,12 +26,16 @@ def get_model(model_config_key):
     module_path, class_name = model_mapping[model_config_key]
     
     try:
-        # Dynamically import the module and get the class
+        # Importa dinamicamente il modulo e ottieni la classe
         module = import_module(module_path)
         model_class = getattr(module, class_name)
         
-        # Create and return an instance of the model with repo parameter
-        return model_class(repo=config.get('repo', f'models/{model_config_key}'))
+        # Se sono definiti, leggi i repository separati per il modello pre-addestrato e quello fine-tunato.
+        repo_finetuned = config.get('repo_finetuned', config.get('repo', f'models/{model_config_key}_finetuned'))
+        repo_pretrained = config.get('repo_pretrained', config.get('repo', f'models/{model_config_key}_pretrained'))
+        
+        # Il costruttore del modello può essere aggiornato per accettare entrambi i parametri
+        return model_class(repo_finetuned=repo_finetuned, repo_pretrained=repo_pretrained)
     except (ImportError, AttributeError) as e:
         logger.error(f"Failed to import model {model_config_key}: {e}")
         raise

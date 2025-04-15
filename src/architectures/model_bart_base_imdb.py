@@ -49,21 +49,21 @@ class BartBaseIMDB:
 
     @staticmethod
     def compute_metrics(eval_pred):
-        """
-        Versione ottimizzata che calcola solo accuracy durante il training
-        per velocizzare la valutazione tra le epoche.
-        """
-        logits, labels = eval_pred
-        logits = np.array(logits, dtype=np.float32)
+        logits = eval_pred.predictions  # Estrae i logits correttamente
+        labels = eval_pred.label_ids    # Estrae le etichette
+    
+        print(f"Shape logits: {logits.shape}")  # Debug forma
+        print(f"Shape labels: {labels.shape}")  # Debug forma
+
+        # Gestione della forma dei logits
         if logits.ndim == 3:
             logits = np.squeeze(logits, axis=-1)
-        predictions = np.argmax(logits, axis=-1)
+        
+        predictions = np.argmax(logits, axis=1)
         accuracy = np.mean(predictions == labels)
         
-        # Ritorna solo accuracy per velocizzare la valutazione durante il training
-        return {
-            "accuracy": accuracy
-        }
+        return {"accuracy": accuracy}
+
 
     def evaluate_final(self, model=None):
         """

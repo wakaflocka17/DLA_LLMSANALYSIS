@@ -52,19 +52,18 @@ class BartBaseIMDB:
         self.test_dataset = test_dataset.map(tokenize_function, batched=True)
 
     def compute_metrics(self, eval_pred):
-        logits = np.array(eval_pred.predictions) # Estrae i logits correttamente
-        labels = eval_pred.label_ids    # Estrae le etichette
-    
-        print(f"Shape logits: {logits.shape}")  # Debug forma
-        print(f"Shape labels: {labels.shape}")  # Debug forma
+        logits = eval_pred.predictions  # <-- usa direttamente
+        labels = eval_pred.label_ids
 
-        # Gestione della forma dei logits
+        print(f"Shape logits: {logits.shape}")
+        print(f"Shape labels: {labels.shape}")
+
         if logits.ndim == 3:
             logits = np.squeeze(logits, axis=-1)
-        
+
         predictions = np.argmax(logits, axis=1)
         accuracy = np.mean(predictions == labels)
-        
+
         return {"accuracy": accuracy}
 
     def evaluate_final(self, model=None):

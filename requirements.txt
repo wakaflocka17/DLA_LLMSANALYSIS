@@ -1,6 +1,6 @@
 numpy<2.0.0
 scikit-learn==1.2.2
-transformers[sentencepiece]==4.28.0
+transformers==4.28.0
 datasets==2.10.0
 torch==2.0.0
 tensorflow==2.12.0

@@ -51,8 +51,7 @@ class BartBaseIMDB:
         self.val_dataset = val_dataset.map(tokenize_function, batched=True)
         self.test_dataset = test_dataset.map(tokenize_function, batched=True)
 
-    @staticmethod
-    def compute_metrics(eval_pred):
+    def compute_metrics(self, eval_pred):
         logits = eval_pred.predictions  # Estrae i logits correttamente
         labels = eval_pred.label_ids    # Estrae le etichette
     
@@ -67,7 +66,6 @@ class BartBaseIMDB:
         accuracy = np.mean(predictions == labels)
         
         return {"accuracy": accuracy}
-
 
     def evaluate_final(self, model=None):
         """
@@ -123,7 +121,7 @@ class BartBaseIMDB:
         }
 
     def train(self, output_dir: str = "./results", num_train_epochs: int = 3, per_device_train_batch_size: int = 8, **kwargs):
-        if self.train_dataset is None or self.eval_dataset is None:
+        if self.train_dataset is None or self.val_dataset is None:
             self.prepare_datasets()
         training_args = TrainingArguments(
             output_dir=output_dir,

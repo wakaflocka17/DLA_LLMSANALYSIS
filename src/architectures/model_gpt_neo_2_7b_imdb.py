@@ -127,7 +127,7 @@ class GPTNeo27BIMDB:
         Esegue il training del modello fine-tunato.
         Al termine, salva i pesi nella directory repo_finetuned.
         """
-        if self.train_dataset is None or self.eval_dataset is None:
+        if self.train_dataset is None or self.val_dataset is None:
             self.prepare_datasets()
 
         training_args = TrainingArguments(

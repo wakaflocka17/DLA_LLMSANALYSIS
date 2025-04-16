@@ -39,7 +39,11 @@ def get_model(model_config_key):
         repo_finetuned = config.get('repo_finetuned', config.get('repo', f'models/{model_config_key}_finetuned'))
         repo_pretrained = config.get('repo_pretrained', config.get('repo', f'models/{model_config_key}_pretrained'))
         
-        # Il costruttore del modello può essere aggiornato per accettare entrambi i parametri
+        # Se il modello è l'ensemble, ha bisogno solo di 'repo'
+        if model_config_key == "ensemble_majority_voting":
+            return model_class(repo=config.get('repo'))
+
+        # Altrimenti, gestiamo i modelli classici
         return model_class(repo_finetuned=repo_finetuned, repo_pretrained=repo_pretrained)
     except (ImportError, AttributeError) as e:
         logger.error(f"Failed to import model {model_config_key}: {e}")

@@ -127,16 +127,37 @@ class BertBaseUncasedIMDB:
             self.prepare_datasets()
 
         if os.path.exists(self.repo_finetuned):
-            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = BertForSequenceClassification.from_pretrained(self.repo_finetuned)
 
+        eval_args = TrainingArguments(
+            output_dir="./results",
+            per_device_eval_batch_size=per_device_eval_batch_size,
+            disable_tqdm=True,
+            **kwargs
+        )
+
+        trainer = Trainer(
+            model=self.model,
+            args=eval_args,
+            eval_dataset=self.test_dataset,
+            tokenizer=self.tokenizer,
+            compute_metrics=self.compute_metrics
+        )
+
         logger.info("Inizio valutazione completa (fine-tunato)...")
-        
-        results = trainer.evaluate()
-        results.update(self.evaluate_final())
-        
+
+        # Metriche HuggingFace (eval_loss, runtime, etc.)
+        hf_results = trainer.evaluate()
+
+        # Metriche custom (accuracy, precision, recall, f1)
+        custom_results = self.evaluate_final()
+
+        # Merge dei risultati
+        results = {**hf_results, **custom_results}
+
         if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
             with open(output_json_path, "w") as f:
                 json.dump(results, f, indent=4)
             logger.info(f"Saved fine-tuned evaluation results to {output_json_path}")
@@ -148,6 +169,8 @@ class BertBaseUncasedIMDB:
             self.prepare_datasets()
 
         logger.info("Valutazione sul modello pre-addestrato (test set)...")
+        
+        # Caricamento del modello pre-addestrato
         if os.path.exists(self.repo_pretrained):
             pretrained_model = BertForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.repo_pretrained}")
@@ -155,9 +178,31 @@ class BertBaseUncasedIMDB:
             pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
 
-        results = trainer.evaluate()
-        results.update(self.evaluate_final())
+        eval_args = TrainingArguments(
+            output_dir="./results",
+            per_device_eval_batch_size=per_device_eval_batch_size,
+            disable_tqdm=True,
+            **kwargs
+        )
 
+        trainer = Trainer(
+            model=pretrained_model,
+            args=eval_args,
+            eval_dataset=self.test_dataset,
+            tokenizer=self.tokenizer,
+            compute_metrics=self.compute_metrics
+        )
+
+        # Calcolo delle metriche HuggingFace
+        hf_results = trainer.evaluate()
+
+        # Calcolo delle metriche custom usando lo stesso model
+        custom_results = self.evaluate_final(model=pretrained_model)
+
+        # Merge delle metriche HuggingFace e custom
+        results = {**hf_results, **custom_results}
+
+        # Salvataggio dei risultati
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             with open(output_json_path, "w") as f:

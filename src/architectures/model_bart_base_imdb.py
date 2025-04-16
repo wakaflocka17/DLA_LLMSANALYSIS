@@ -194,9 +194,6 @@ class BartBaseIMDB:
         return results
 
     def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
-        """
-        Valuta il modello pre-addestrato (senza fine-tuning) sul test set.
-        """
         if self.test_dataset is None:
             self.prepare_datasets()
         eval_args = TrainingArguments(
@@ -212,6 +209,7 @@ class BartBaseIMDB:
         else:
             pretrained_model = BartForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
+
         trainer = Trainer(
             model=pretrained_model,
             args=eval_args,
@@ -219,11 +217,14 @@ class BartBaseIMDB:
             tokenizer=self.tokenizer,
             compute_metrics=self.compute_metrics
         )
+
         logger.info("Inizio valutazione sul test set (modello pre-addestrato)...")
-        results = trainer.evaluate()
-        results.update(self.evaluate_final())
-        logger.info(f"Valutazione completata con risultati: {results}")
-        
+        hf_results = trainer.evaluate()
+
+        custom_results = self.evaluate_final(model=pretrained_model)
+
+        results = {**hf_results, **custom_results}
+
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             with open(output_json_path, "w") as f:

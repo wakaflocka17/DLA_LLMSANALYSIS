@@ -178,20 +178,33 @@ class GPTNeo27BIMDB:
             logger.info("Training completato senza log di metriche finali.")
 
     def evaluate(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
-        """
-        Valuta il modello fine-tunato: se la directory repo_finetuned esiste, carica i pesi da lì.
-        """
-        if self.eval_dataset is None:
+        if self.test_dataset is None:
             self.prepare_datasets()
 
         if os.path.exists(self.repo_finetuned):
-            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = AutoModelForSequenceClassification.from_pretrained(self.repo_finetuned)
 
+        eval_args = TrainingArguments(
+            output_dir="./results",
+            per_device_eval_batch_size=per_device_eval_batch_size,
+            disable_tqdm=True,
+            **kwargs
+        )
+
+        trainer = Trainer(
+            model=self.model,
+            args=eval_args,
+            eval_dataset=self.test_dataset,
+            tokenizer=self.tokenizer,
+            compute_metrics=self.compute_metrics
+        )
+
         logger.info("Inizio valutazione completa (fine-tunato)...")
-        results = trainer.evaluate()
-        results.update(self.evaluate_final())
+
+        hf_results = trainer.evaluate()
+        custom_results = self.evaluate_final()
+        results = {**hf_results, **custom_results}
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
@@ -202,27 +215,37 @@ class GPTNeo27BIMDB:
         return results
 
     def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
-        """
-        Valuta il modello pre-addestrato:
-          - Se la directory repo_pretrained esiste, la usa (se vuoi salvare localmente il pre-addestrato),
-            altrimenti carica direttamente dal pretrained_model_name.
-        """
-        if self.eval_dataset is None:
+        if self.test_dataset is None:
             self.prepare_datasets()
 
         logger.info("Valutazione sul modello pre-addestrato...")
         if os.path.exists(self.repo_pretrained):
-            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.repo_pretrained}")
         else:
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
-        
+
+        eval_args = TrainingArguments(
+            output_dir="./results",
+            per_device_eval_batch_size=per_device_eval_batch_size,
+            disable_tqdm=True,
+            **kwargs
+        )
+
+        trainer = Trainer(
+            model=pretrained_model,
+            args=eval_args,
+            eval_dataset=self.test_dataset,
+            tokenizer=self.tokenizer,
+            compute_metrics=self.compute_metrics
+        )
+
         logger.info("Inizio valutazione completa (pre-addestrato)...")
 
-        results = trainer.evaluate()
-        results.update(self.evaluate_final())
+        hf_results = trainer.evaluate()
+        custom_results = self.evaluate_final(model=pretrained_model)
+        results = {**hf_results, **custom_results}
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)

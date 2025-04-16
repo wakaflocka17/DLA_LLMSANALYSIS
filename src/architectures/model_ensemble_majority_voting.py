@@ -2,10 +2,10 @@ from src.data_preprocessing import load_imdb_dataset, create_splits
 import numpy as np
 import logging
 import os
+import json
 from transformers import Trainer, TrainingArguments
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
 from scipy.stats import mode
-
 from model_factory import get_model
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,6 @@ class EnsembleMajorityVoting:
         for member in self.members:
             member.prepare_datasets(max_samples=max_samples)
 
-        # Usiamo il dataset del primo membro come riferimento
         self.train_dataset = self.members[0].train_dataset
         self.val_dataset = self.members[0].val_dataset
         self.test_dataset = self.members[0].test_dataset
@@ -49,10 +48,8 @@ class EnsembleMajorityVoting:
         if self.test_dataset is None:
             self.prepare_datasets()
 
-        predictions_dict = {}
         member_preds = {}
 
-        # Otteniamo le predizioni per ogni membro
         for member in self.members:
             eval_args = TrainingArguments(
                 output_dir="./results",
@@ -68,9 +65,10 @@ class EnsembleMajorityVoting:
             )
             preds = trainer.predict(self.test_dataset).predictions
             preds_labels = np.argmax(preds, axis=-1)
-            member_preds[member.repo_finetuned.split("/")[-1]] = preds_labels
+            model_name = member.repo_finetuned.split("/")[-1]
+            member_preds[model_name] = preds_labels
 
-        # Costruisci il dizionario per ogni sample
+        model_names_sorted = sorted(member_preds.keys())
         num_samples = len(self.test_dataset)
         true_labels = self.test_dataset["label"]
 
@@ -78,9 +76,10 @@ class EnsembleMajorityVoting:
         for i in range(num_samples):
             sample_pred = {"true_label": true_labels[i]}
             votes = []
-            for model_name, preds in member_preds.items():
-                sample_pred[model_name] = preds[i]
-                votes.append(preds[i])
+            for model_name in model_names_sorted:
+                pred = member_preds[model_name][i]
+                sample_pred[model_name] = int(pred)
+                votes.append(pred)
             voted, _ = mode(votes)
             sample_pred["voted"] = int(voted[0])
             ensemble_predictions.append(sample_pred)
@@ -96,18 +95,25 @@ class EnsembleMajorityVoting:
         true_labels = [sample["true_label"] for sample in detailed_preds]
 
         accuracy = np.mean(np.array(ensemble_preds) == np.array(true_labels))
+        precision = precision_score(true_labels, ensemble_preds, average="binary")
+        recall = recall_score(true_labels, ensemble_preds, average="binary")
+        f1 = f1_score(true_labels, ensemble_preds, average="binary")
         logger.info(f"Ensemble evaluation accuracy: {accuracy:.4f}")
 
-        report = classification_report(
+        report_dict = classification_report(
             true_labels,
             ensemble_preds,
             target_names=["negativo", "positivo"],
-            digits=4
+            digits=4,
+            output_dict=True
         )
-        logger.info("\n" + report)
 
         results = {
             "accuracy": accuracy,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "classification_report": report_dict,
             "detailed_predictions": detailed_preds
         }
 

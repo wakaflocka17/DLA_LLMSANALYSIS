@@ -130,14 +130,11 @@ class GPTNeo27BIMDB:
             "accuracy": accuracy,
             "precision": precision,
             "recall": recall,
-            "f1": f1
+            "f1": f1,
+            "classification_report": report
         }
 
     def train(self, output_dir: str = "./results", num_train_epochs: int = 3, per_device_train_batch_size: int = 8, **kwargs):
-        """
-        Esegue il training del modello fine-tunato.
-        Al termine, salva i pesi nella directory repo_finetuned.
-        """
         if self.train_dataset is None or self.val_dataset is None:
             self.prepare_datasets()
 
@@ -169,11 +166,20 @@ class GPTNeo27BIMDB:
         )
 
         trainer.train()
-        # Salva il modello fine-tunato nella directory repo_finetuned
         trainer.save_model(self.repo_finetuned)
+
         if trainer.state.log_history:
             final_log = trainer.state.log_history[-1]
             logger.info(f"Training completato con metriche finali: {final_log}")
+
+            training_metrics_path = os.path.join(
+                "results", "validation", "finetuned", f"{os.path.basename(self.repo_finetuned)}_metrics.json"
+            )
+            
+            os.makedirs(os.path.dirname(training_metrics_path), exist_ok=True)
+            with open(training_metrics_path, "w") as f:
+                json.dump(trainer.state.log_history, f, indent=4)
+            logger.info(f"Training metrics salvate in {training_metrics_path}")
         else:
             logger.info("Training completato senza log di metriche finali.")
 
@@ -192,19 +198,9 @@ class GPTNeo27BIMDB:
             **kwargs
         )
 
-        trainer = Trainer(
-            model=self.model,
-            args=eval_args,
-            eval_dataset=self.test_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
-
         logger.info("Inizio valutazione completa (fine-tunato)...")
 
-        hf_results = trainer.evaluate()
-        custom_results = self.evaluate_final()
-        results = {**hf_results, **custom_results}
+        results = self.evaluate_final()
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
@@ -233,19 +229,9 @@ class GPTNeo27BIMDB:
             **kwargs
         )
 
-        trainer = Trainer(
-            model=pretrained_model,
-            args=eval_args,
-            eval_dataset=self.test_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
-
         logger.info("Inizio valutazione completa (pre-addestrato)...")
 
-        hf_results = trainer.evaluate()
-        custom_results = self.evaluate_final(model=pretrained_model)
-        results = {**hf_results, **custom_results}
+        results = self.evaluate_final()
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)

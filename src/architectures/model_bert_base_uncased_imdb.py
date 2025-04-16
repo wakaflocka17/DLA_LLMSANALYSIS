@@ -82,7 +82,17 @@ class BertBaseUncasedIMDB:
         trainer.save_model(self.repo_finetuned)
 
         if trainer.state.log_history:
-            logger.info(f"Training completato con metriche finali: {trainer.state.log_history[-1]}")
+            final_log = trainer.state.log_history[-1]
+            logger.info(f"Training completato con metriche finali: {final_log}")
+
+            training_metrics_path = os.path.join(
+                "results", "validation", "finetuned", f"{os.path.basename(self.repo_finetuned)}_metrics.json"
+            )
+
+            os.makedirs(os.path.dirname(training_metrics_path), exist_ok=True)
+            with open(training_metrics_path, "w") as f:
+                json.dump(trainer.state.log_history, f, indent=4)
+            logger.info(f"Training metrics salvate in {training_metrics_path}")
         else:
             logger.info("Training completato senza log di metriche finali.")
 
@@ -130,31 +140,10 @@ class BertBaseUncasedIMDB:
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = BertForSequenceClassification.from_pretrained(self.repo_finetuned)
 
-        eval_args = TrainingArguments(
-            output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
-            disable_tqdm=True,
-            **kwargs
-        )
-
-        trainer = Trainer(
-            model=self.model,
-            args=eval_args,
-            eval_dataset=self.test_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
-
         logger.info("Inizio valutazione completa (fine-tunato)...")
 
-        # Metriche HuggingFace (eval_loss, runtime, etc.)
-        hf_results = trainer.evaluate()
-
-        # Metriche custom (accuracy, precision, recall, f1)
-        custom_results = self.evaluate_final()
-
-        # Merge dei risultati
-        results = {**hf_results, **custom_results}
+        # Calcolo solo delle metriche custom sul test set
+        results = self.evaluate_final()
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
@@ -178,31 +167,11 @@ class BertBaseUncasedIMDB:
             pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
 
-        eval_args = TrainingArguments(
-            output_dir="./results",
-            per_device_eval_batch_size=per_device_eval_batch_size,
-            disable_tqdm=True,
-            **kwargs
-        )
+        logger.info("Inizio valutazione completa (pre-addestrato)...")
 
-        trainer = Trainer(
-            model=pretrained_model,
-            args=eval_args,
-            eval_dataset=self.test_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
+        # Calcolo solo delle metriche custom sul test set
+        results = self.evaluate_final(model=pretrained_model)
 
-        # Calcolo delle metriche HuggingFace
-        hf_results = trainer.evaluate()
-
-        # Calcolo delle metriche custom usando lo stesso model
-        custom_results = self.evaluate_final(model=pretrained_model)
-
-        # Merge delle metriche HuggingFace e custom
-        results = {**hf_results, **custom_results}
-
-        # Salvataggio dei risultati
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             with open(output_json_path, "w") as f:

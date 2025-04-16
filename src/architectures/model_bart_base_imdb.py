@@ -100,6 +100,9 @@ class BartBaseIMDB:
         preds = predictions_output.predictions
         labels = predictions_output.label_ids
 
+        if isinstance(preds, tuple):
+            preds = preds[0]
+
         if preds.ndim == 3:
             preds = np.squeeze(preds, axis=-1)
         final_predictions = np.argmax(preds, axis=-1)
@@ -152,9 +155,20 @@ class BartBaseIMDB:
         )
         trainer.train()
         trainer.save_model(self.repo_finetuned)
+
         if trainer.state.log_history:
             final_log = trainer.state.log_history[-1]
             logger.info(f"Training completato con metriche finali: {final_log}")
+
+            training_metrics_path = os.path.join(
+                "results", "validation", "finetuned", f"{os.path.basename(self.repo_finetuned)}_metrics.json"
+            )
+
+            os.makedirs(os.path.dirname(training_metrics_path), exist_ok=True)
+            
+            with open(training_metrics_path, "w") as f:
+                json.dump(trainer.state.log_history, f, indent=4)
+            logger.info(f"Training metrics salvate in {training_metrics_path}")
         else:
             logger.info("Training completato senza log di metriche finali.")
 
@@ -173,16 +187,9 @@ class BartBaseIMDB:
             disable_tqdm=False,
             **kwargs
         )
-        trainer = Trainer(
-            model=self.model,
-            args=eval_args,
-            eval_dataset=self.test_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
+        
         logger.info("Inizio valutazione sul test set (modello fine-tunato)...")
-        results = trainer.evaluate()
-        results.update(self.evaluate_final())
+        results = self.evaluate_final()
         logger.info(f"Valutazione completata con risultati: {results}")
 
         if output_json_path:
@@ -210,20 +217,8 @@ class BartBaseIMDB:
             pretrained_model = BartForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
 
-        trainer = Trainer(
-            model=pretrained_model,
-            args=eval_args,
-            eval_dataset=self.test_dataset,
-            tokenizer=self.tokenizer,
-            compute_metrics=self.compute_metrics
-        )
-
         logger.info("Inizio valutazione sul test set (modello pre-addestrato)...")
-        hf_results = trainer.evaluate()
-
-        custom_results = self.evaluate_final(model=pretrained_model)
-
-        results = {**hf_results, **custom_results}
+        results = self.evaluate_final()
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 

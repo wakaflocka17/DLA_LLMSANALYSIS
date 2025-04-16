@@ -189,9 +189,10 @@ class GPTNeo27BIMDB:
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = AutoModelForSequenceClassification.from_pretrained(self.repo_finetuned)
 
-        # Esegui direttamente la valutazione finale completa
         logger.info("Inizio valutazione completa (fine-tunato)...")
-        results = self.evaluate_final()
+        results = trainer.evaluate()
+        results.update(self.evaluate_final())
+
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
             with open(output_json_path, "w") as f:
@@ -218,10 +219,11 @@ class GPTNeo27BIMDB:
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
         
-        # Esegui la valutazione finale completa sul modello pre-addestrato
         logger.info("Inizio valutazione completa (pre-addestrato)...")
 
-        results = self.evaluate_final(model=pretrained_model)
+        results = trainer.evaluate()
+        results.update(self.evaluate_final())
+
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
             with open(output_json_path, "w") as f:

@@ -133,8 +133,9 @@ class BertBaseUncasedIMDB:
 
         logger.info("Inizio valutazione completa (fine-tunato)...")
         
-        results = self.evaluate_final()   # {"accuracy": ..., "precision": ..., "recall": ..., "f1": ...}
-
+        results = trainer.evaluate()
+        results.update(self.evaluate_final())
+        
         if output_json_path:
             with open(output_json_path, "w") as f:
                 json.dump(results, f, indent=4)
@@ -154,12 +155,13 @@ class BertBaseUncasedIMDB:
             pretrained_model = BertForSequenceClassification.from_pretrained(self.pretrained_model_name, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.pretrained_model_name}")
 
-        final_results = self.evaluate_final(model=pretrained_model)
+        results = trainer.evaluate()
+        results.update(self.evaluate_final())
 
         if output_json_path:
             os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             with open(output_json_path, "w") as f:
-                json.dump(final_results, f, indent=4)
+                json.dump(results, f, indent=4)
             logger.info(f"Saved pretrained evaluation results to {output_json_path}")
 
-        return final_results
+        return results

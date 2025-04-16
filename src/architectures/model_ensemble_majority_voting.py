@@ -49,7 +49,10 @@ class EnsembleMajorityVoting:
         if self.test_dataset is None:
             self.prepare_datasets()
 
-        predictions_list = []
+        predictions_dict = {}
+        member_preds = {}
+
+        # Otteniamo le predizioni per ogni membro
         for member in self.members:
             eval_args = TrainingArguments(
                 output_dir="./results",
@@ -65,20 +68,34 @@ class EnsembleMajorityVoting:
             )
             preds = trainer.predict(self.test_dataset).predictions
             preds_labels = np.argmax(preds, axis=-1)
-            predictions_list.append(preds_labels)
+            member_preds[member.repo_finetuned.split("/")[-1]] = preds_labels
 
-        stacked = np.stack(predictions_list, axis=0)
-        ensemble_preds, _ = mode(stacked, axis=0)
-        return ensemble_preds.flatten()
+        # Costruisci il dizionario per ogni sample
+        num_samples = len(self.test_dataset)
+        true_labels = self.test_dataset["label"]
 
-    def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
+        ensemble_predictions = []
+        for i in range(num_samples):
+            sample_pred = {"true_label": true_labels[i]}
+            votes = []
+            for model_name, preds in member_preds.items():
+                sample_pred[model_name] = preds[i]
+                votes.append(preds[i])
+            voted, _ = mode(votes)
+            sample_pred["voted"] = int(voted[0])
+            ensemble_predictions.append(sample_pred)
+
+        return ensemble_predictions
+
+    def evaluate(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         if self.test_dataset is None:
             self.prepare_datasets()
 
-        ensemble_preds = self.predict(per_device_eval_batch_size, **kwargs)
-        true_labels = self.test_dataset["label"]
+        detailed_preds = self.predict(per_device_eval_batch_size, **kwargs)
+        ensemble_preds = [sample["voted"] for sample in detailed_preds]
+        true_labels = [sample["true_label"] for sample in detailed_preds]
 
-        accuracy = np.mean(ensemble_preds == true_labels)
+        accuracy = np.mean(np.array(ensemble_preds) == np.array(true_labels))
         logger.info(f"Ensemble evaluation accuracy: {accuracy:.4f}")
 
         report = classification_report(
@@ -89,4 +106,15 @@ class EnsembleMajorityVoting:
         )
         logger.info("\n" + report)
 
-        return {"accuracy": accuracy}
+        results = {
+            "accuracy": accuracy,
+            "detailed_predictions": detailed_preds
+        }
+
+        if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
+            with open(output_json_path, "w") as f:
+                json.dump(results, f, indent=4)
+            logger.info(f"Saved ensemble evaluation results to {output_json_path}")
+
+        return results

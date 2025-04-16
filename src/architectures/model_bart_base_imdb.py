@@ -182,6 +182,7 @@ class BartBaseIMDB:
         )
         logger.info("Inizio valutazione sul test set (modello fine-tunato)...")
         results = trainer.evaluate()
+        results.update(self.evaluate_final())
         logger.info(f"Valutazione completata con risultati: {results}")
 
         if output_json_path:
@@ -220,6 +221,7 @@ class BartBaseIMDB:
         )
         logger.info("Inizio valutazione sul test set (modello pre-addestrato)...")
         results = trainer.evaluate()
+        results.update(self.evaluate_final())
         logger.info(f"Valutazione completata con risultati: {results}")
         
         if output_json_path:

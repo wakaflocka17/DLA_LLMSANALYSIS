@@ -185,6 +185,7 @@ class BartBaseIMDB:
         logger.info(f"Valutazione completata con risultati: {results}")
 
         if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
             with open(output_json_path, "w") as f:
                 json.dump(results, f, indent=4)
             logger.info(f"Saved fine-tuned evaluation results to {output_json_path}")
@@ -222,6 +223,7 @@ class BartBaseIMDB:
         logger.info(f"Valutazione completata con risultati: {results}")
         
         if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             with open(output_json_path, "w") as f:
                 json.dump(results, f, indent=4)
             logger.info(f"Saved pretrained evaluation results to {output_json_path}")

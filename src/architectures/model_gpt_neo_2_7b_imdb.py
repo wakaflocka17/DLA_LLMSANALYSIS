@@ -177,7 +177,7 @@ class GPTNeo27BIMDB:
         else:
             logger.info("Training completato senza log di metriche finali.")
 
-    def evaluate(self, per_device_eval_batch_size: int = 8, **kwargs):
+    def evaluate(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         """
         Valuta il modello fine-tunato: se la directory repo_finetuned esiste, carica i pesi da lì.
         """
@@ -185,16 +185,22 @@ class GPTNeo27BIMDB:
             self.prepare_datasets()
 
         if os.path.exists(self.repo_finetuned):
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = AutoModelForSequenceClassification.from_pretrained(self.repo_finetuned)
 
         # Esegui direttamente la valutazione finale completa
         logger.info("Inizio valutazione completa (fine-tunato)...")
         results = self.evaluate_final()
+        if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
+            with open(output_json_path, "w") as f:
+                json.dump(results, f, indent=4)
+            logger.info(f"Saved fine-tuned evaluation results to {output_json_path}")
         logger.info(f"Valutazione completata con risultati: {results}")
         return results
 
-    def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, **kwargs):
+    def evaluate_pretrained(self, per_device_eval_batch_size: int = 8, output_json_path: str = None, **kwargs):
         """
         Valuta il modello pre-addestrato:
           - Se la directory repo_pretrained esiste, la usa (se vuoi salvare localmente il pre-addestrato),
@@ -205,6 +211,7 @@ class GPTNeo27BIMDB:
 
         logger.info("Valutazione sul modello pre-addestrato...")
         if os.path.exists(self.repo_pretrained):
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             pretrained_model = AutoModelForSequenceClassification.from_pretrained(self.repo_pretrained, num_labels=2)
             logger.info(f"Carico il modello pre-addestrato da {self.repo_pretrained}")
         else:
@@ -213,6 +220,12 @@ class GPTNeo27BIMDB:
         
         # Esegui la valutazione finale completa sul modello pre-addestrato
         logger.info("Inizio valutazione completa (pre-addestrato)...")
+
         results = self.evaluate_final(model=pretrained_model)
+        if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
+            with open(output_json_path, "w") as f:
+                json.dump(results, f, indent=4)
+            logger.info(f"Saved pretrained evaluation results to {output_json_path}")
         logger.info(f"Valutazione completata con risultati: {results}")
         return results

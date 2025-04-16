@@ -127,6 +127,7 @@ class BertBaseUncasedIMDB:
             self.prepare_datasets()
 
         if os.path.exists(self.repo_finetuned):
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             logger.info(f"Carico il modello fine-tunato da {self.repo_finetuned}")
             self.model = BertForSequenceClassification.from_pretrained(self.repo_finetuned)
 
@@ -156,6 +157,7 @@ class BertBaseUncasedIMDB:
         final_results = self.evaluate_final(model=pretrained_model)
 
         if output_json_path:
+            os.makedirs(os.path.dirname(output_json_path), exist_ok=True) 
             with open(output_json_path, "w") as f:
                 json.dump(final_results, f, indent=4)
             logger.info(f"Saved pretrained evaluation results to {output_json_path}")

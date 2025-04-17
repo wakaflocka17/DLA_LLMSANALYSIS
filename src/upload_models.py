@@ -3,7 +3,6 @@ import shutil
 import argparse
 from utils import upload_model_to_hf
 
-# Mappa: nome cartella modello -> repo Hugging Face
 MODELS_TO_UPLOAD = {
     "bert-base-uncased-imdb": "wakaflocka17/bert-imdb-finetuned",
     "bart-base-imdb": "wakaflocka17/bart-imdb-finetuned",

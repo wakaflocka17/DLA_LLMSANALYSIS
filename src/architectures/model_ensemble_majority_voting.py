@@ -6,7 +6,7 @@ import json
 from transformers import Trainer, TrainingArguments
 from sklearn.metrics import classification_report, precision_score, recall_score, f1_score
 from scipy.stats import mode
-from model_factory import get_model
+from src.model_factory import get_model
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +16,7 @@ class EnsembleMajorityVoting:
         self.repo = repo
         if member_names is None:
             member_names = ["bert_base_uncased", "bart_base", "gpt_neo_2_7b"]
+        kwargs.pop("use_downloaded", None)  # rimuove la duplicazione se c'è
         self.members = [get_model(name, use_downloaded=True, **kwargs) for name in member_names]
         self.train_dataset = None
         self.val_dataset = None

@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="https://github.com/user-attachments/assets/c437885d-d304-4714-b4c2-0f47409ed226" alt="sentiment" width="600">
-  <p>Project on Binary Sentiment Analysis using Pretrained, Fine-tuned and Ensemble Transformer Models</p>
+  <p>Project on <b>Binary Sentiment Analysis</b> using <b>Pretrained</b>, <b>Fine-tuned</b> and <b>Ensemble</b> Transformer Models.</p>
 </div>
 
 ---

@@ -15,7 +15,7 @@ class EnsembleMajorityVoting:
     def __init__(self, repo: str, member_names: list = None, **kwargs):
         self.repo = repo
         if member_names is None:
-            member_names = ["bert-base-uncased-imdb", "bart-base-imdb", "gpt-neo-2.7b-imdb"]
+            member_names = ["bert_base_uncased", "bart_base", "gpt_neo_2_7b"]
         self.members = [get_model(name, **kwargs) for name in member_names]
         self.train_dataset = None
         self.val_dataset = None

@@ -16,7 +16,7 @@ class EnsembleMajorityVoting:
         self.repo = repo
         if member_names is None:
             member_names = ["bert_base_uncased", "bart_base", "gpt_neo_2_7b"]
-        self.members = [get_model(name, **kwargs) for name in member_names]
+        self.members = [get_model(name, use_downloaded=True, **kwargs) for name in member_names]
         self.train_dataset = None
         self.val_dataset = None
         self.test_dataset = None

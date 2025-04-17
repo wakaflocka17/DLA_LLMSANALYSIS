@@ -11,10 +11,11 @@ models = {
     "gpt_neo_2_7b": "wakaflocka17/gptneo-imdb-finetuned"
 }
 
-os.makedirs("models", exist_ok=True)
+# ⬅️ Salva nella root del progetto
+os.makedirs("../models", exist_ok=True)
 
 for local_name, hf_repo in models.items():
-    save_dir = os.path.join("models", local_name)
+    save_dir = os.path.join("../models", local_name)
     print(f"⬇️ Scaricando: {hf_repo} → {save_dir}")
     
     tokenizer = AutoTokenizer.from_pretrained(hf_repo)
@@ -23,4 +24,4 @@ for local_name, hf_repo in models.items():
     tokenizer.save_pretrained(save_dir)
     model.save_pretrained(save_dir)
 
-print("✅ Tutti i modelli sono stati salvati nella cartella 'models/'")
+print("✅ Tutti i modelli sono stati salvati nella cartella '../models/'")

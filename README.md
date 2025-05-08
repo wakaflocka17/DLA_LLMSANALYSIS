@@ -1,24 +1,37 @@
 # 🧠 SENTIMENT ANALYSIS 2024/25 - UNICA
 
-<div align="center">
+<p align="center">
+  <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">
+    <img src="https://img.shields.io/badge/License-Apache_2.0-4285F4?style=for-the-badge&logo=none&logoColor=white" alt="Apache License 2.0"/>
+  </a>
+  <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
+    <img src="https://img.shields.io/badge/Docs-CC_BY_4.0-FBBC05?style=for-the-badge&logo=none&logoColor=white" alt="CC BY 4.0 License"/>
+  </a>
+</p>
+
+<p align="center">
   <img src="https://github.com/user-attachments/assets/c437885d-d304-4714-b4c2-0f47409ed226" alt="sentiment" width="600">
-  <p>Project on <b>Binary Sentiment Analysis</b> using <b>Pretrained</b>, <b>Fine-tuned</b> and <b>Ensemble</b> Transformer Models.</p>
-</div>
+</p>
+
+<p align="center">
+  Project on <b>Binary Sentiment Analysis</b> using <b>Pretrained</b>, <b>Fine-tuned</b> and <b>Ensemble</b> Transformer Models.
+</p>
 
 ---
 
 > ## 📑 Summary
-> 01. [🧑🏻‍🎓 Student](#student)
-> 02. [📌 Description](#description)
-> 03. [📄 Notebooks Overview](#notebooks-overview)
-> 04. [📁 Project Structure](#project-structure)
-> 05. [🔐 Access to Hugging Face Models](#access-to-hugging-face-models)
-> 06. [🚀 Installation](#installation)
-> 07. [🧪 Run: Model Training & Evaluation](#run-model-training--evaluation)
-> 08. [📊 Metrics and Outputs](#metrics-and-outputs)
-> 09. [🖥️ Hardware and Limitations](#hardware-and-limitations)
-> 10. [🤝 Contributions](#contributions)
-> 11. [❓ How to Cite](#how-to-cite)
+> 01. [🧑🏻‍🎓 Student](#student)  
+> 02. [📌 Description](#description)  
+> 03. [📄 Notebooks Overview](#notebooks-overview)  
+> 04. [📁 Project Structure](#project-structure)  
+> 05. [🔐 Access to Hugging Face Models](#access-to-hugging-face-models)  
+> 06. [🚀 Installation](#installation)  
+> 07. [🧪 Run: Model Training & Evaluation](#run-model-training--evaluation)  
+> 08. [📊 Metrics and Outputs](#metrics-and-outputs)  
+> 09. [🖥️ Hardware and Limitations](#hardware-and-limitations)  
+> 10. [🤝 Contributions](#contributions)  
+> 11. [📝 Licenses](#licenses)  
+> 12. [❓ How to Cite](#how-to-cite)
 
 ---
 
@@ -364,12 +377,21 @@ We welcome improvements, especially in the following areas:
 
 ---
 
-## 11. ❓ How to Cite
+## 11. 📝 Licenses <a name="licenses"></a>
+> [!NOTE]
+> **Code**: This repository's source code is licensed under the [Apache License 2.0](./LICENSE). You can read more at [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+>
+> **Documentation**: All documentation, including this README, is licensed under the [Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/). See the full text in the [LICENSE_DOCS](./LICENSE_DOCS) file.
+
+
+---
+
+## 12. ❓ How to Cite
 ```bibtex
 @misc{Sentiment-Project,
 author       = {Francesco Congiu},
 title        = {Sentiment Analysis with Pretrained, Fine-tuned and Ensemble Transformer Models},
-howpublished = {\url{https://github.com/<your-username>/sentiment-analysis-transformers}},
+howpublished = {\url{https://github.com/wakaflocka17/DLA_LLMSANALYSIS}},
 year         = {2025}
 }
 ```

@@ -1,21 +1,22 @@
 from importlib import import_module
 from src.model_configs import MODEL_CONFIGS
-
 import logging
+
 logger = logging.getLogger(__name__)
 
-def get_model(model_config_key, use_downloaded: bool = False):
+def get_model(model_config_key, use_downloaded: bool = False, **kwargs_for_model_init):
     """
     Factory function to create model instances based on configuration key.
 
     Args:
-        model_config_key: String key matching a model in MODEL_CONFIGS
-        use_downloaded: If True, load models from 'repo_downloaded' instead of 'repo_finetuned'
+        model_config_key: String key matching a model in MODEL_CONFIGS.
+        use_downloaded: If True, instructs individual models (or ensemble members)
+                        to attempt loading from 'repo_downloaded' path first.
+        **kwargs_for_model_init: Additional keyword arguments to pass to the model's constructor.
 
     Returns:
-        An instance of the appropriate model class
+        An instance of the appropriate model class.
     """
-    # Map config keys to module and class names
     model_mapping = {
         'bart_base': ('src.architectures.model_bart_base_imdb', 'BartBaseIMDB'),
         'bert_base_uncased': ('src.architectures.model_bert_base_uncased_imdb', 'BertBaseUncasedIMDB'),
@@ -26,6 +27,7 @@ def get_model(model_config_key, use_downloaded: bool = False):
     if model_config_key not in model_mapping:
         raise ValueError(f"Unknown model configuration key: {model_config_key}")
 
+    # Ottieni la configurazione specifica
     config = MODEL_CONFIGS.get(model_config_key, {})
 
     module_path, class_name = model_mapping[model_config_key]

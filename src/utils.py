@@ -5,7 +5,7 @@ from huggingface_hub import create_repo, upload_folder, upload_file
 import os
 import logging
 from tqdm import tqdm
-from transformers import TrainerCallback
+from transformers import TrainerCallback, AutoModelForSequenceClassification, AutoTokenizer # Added AutoModelForSequenceClassification, AutoTokenizer
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -114,3 +114,50 @@ class TqdmLoggingCallback(TrainerCallback):
                 self.pbar.update(state.global_step - self.last_update_step)
             self.pbar.close()
         logger.info("Training completato.")
+
+
+# New function to load models locally first
+def load_local_model(model_config_entry: dict, model_key_for_log: str):
+    """
+    Loads a model and tokenizer, prioritizing local paths.
+    Order: repo_finetuned -> repo_downloaded -> model_name (from HF Hub).
+    Uses local_files_only=True for local attempts.
+
+    Args:
+        model_config_entry (dict): The configuration dictionary for the specific model
+                                   (e.g., MODEL_CONFIGS['bart_base']).
+        model_key_for_log (str): The key of the model (e.g., 'bart_base') for logging.
+
+    Returns:
+        tuple: (model, tokenizer) or (None, None) if loading fails.
+    """
+    model_name = model_config_entry.get('model_name')
+    repo_finetuned = model_config_entry.get('repo_finetuned')
+    repo_downloaded = model_config_entry.get('repo_downloaded')
+
+    paths_to_try = []
+    if repo_finetuned:
+        paths_to_try.append({'path': repo_finetuned, 'source': 'fine-tuned (local)', 'local_only': True})
+    if repo_downloaded:
+        paths_to_try.append({'path': repo_downloaded, 'source': 'downloaded (local)', 'local_only': True})
+    if model_name: # Fallback to Hugging Face Hub
+        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub', 'local_only': False}) # Try with network if local fails
+        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub (local cache attempt)', 'local_only': True}) # Also try local_files_only for model_name
+
+    for config in paths_to_try:
+        path_to_load = config['path']
+        source_info = config['source']
+        local_files_flag = config['local_only']
+        logger.info(f"Attempting to load {model_key_for_log} from: {path_to_load} (source: {source_info}, local_files_only={local_files_flag})")
+        try:
+            model = AutoModelForSequenceClassification.from_pretrained(path_to_load, local_files_only=local_files_flag)
+            tokenizer = AutoTokenizer.from_pretrained(path_to_load, local_files_only=local_files_flag)
+            logger.info(f"Successfully loaded {model_key_for_log} from {path_to_load} ({source_info})")
+            return model, tokenizer
+        except OSError:
+            logger.warning(f"Failed to load {model_key_for_log} from {path_to_load} ({source_info}) with local_files_only={local_files_flag}. It might not exist or not be a valid model directory.")
+        except Exception as e:
+            logger.error(f"An unexpected error occurred while loading {model_key_for_log} from {path_to_load} ({source_info}): {e}")
+
+    logger.error(f"Failed to load model {model_key_for_log} from all specified paths.")
+    return None, None

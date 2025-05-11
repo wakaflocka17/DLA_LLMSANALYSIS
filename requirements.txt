@@ -9,3 +9,5 @@ evaluate==0.4.0
 huggingface_hub
 matplotlib
 tqdm
+bitsandbytes 
+optimum[onnxruntime]

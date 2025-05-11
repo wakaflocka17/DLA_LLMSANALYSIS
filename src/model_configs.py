@@ -32,8 +32,8 @@ MODEL_CONFIGS = {
     },
     'ensemble_majority_voting': {
         'model_names': ['bart_base', 'bert_base_uncased', 'gpt_neo_2_7b'],
-        'train_batch_size': 8,
-        'eval_batch_size': 4,
+        'train_batch_size': 8, # Non rilevante per l'eval che stiamo ottimizzando
+        'eval_batch_size': 64,  # Aumentato da 4. Prova 32, 64, o 128. Monitora la VRAM.
         'epochs': 3,
         'repo': 'models/ensemble/majority-voting-imdb'
     }

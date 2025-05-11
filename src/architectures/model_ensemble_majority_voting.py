@@ -5,8 +5,10 @@ import os
 import json
 from tqdm.auto import tqdm # Aggiunto import per tqdm
 from src.model_configs import MODEL_CONFIGS # Assuming MODEL_CONFIGS is accessible
-from src.utils import get_model_type, get_prediction, load_local_model 
+from src.utils import get_model_type, load_local_model # Removed get_prediction as it's not used here
 from src.data_preprocessing import load_imdb_dataset, create_splits # Moved load_imdb_dataset and create_splits here
+from torch.utils.data import DataLoader # Added DataLoader
+from optimum.bettertransformer import BetterTransformer # Added BetterTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +26,9 @@ class EnsembleMajorityVoting:
         self.models = {}
         self.tokenizers = {}
         self.model_types = {}
-        self.device = device
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu") # Ensure device is torch.device
 
-        logger.info(f"Initializing EnsembleMajorityVoting with models: {model_keys}")
+        logger.info(f"Initializing EnsembleMajorityVoting with models: {model_keys} on device: {self.device}")
 
         for model_key in self.model_keys:
             if model_key not in MODEL_CONFIGS:
@@ -34,18 +36,47 @@ class EnsembleMajorityVoting:
                 raise ValueError(f"Configuration for model '{model_key}' not found.")
 
             model_config_entry = MODEL_CONFIGS[model_key]
+            model_name_for_type = model_config_entry['model_name'] # For get_model_type
             
-            # Use the new load_local_model function
-            model, tokenizer = load_local_model(model_config_entry, model_key)
+            current_torch_dtype = None
+            current_load_in_8bit = False
+
+            if "gpt" in model_key.lower(): # Specific handling for GPT-Neo
+                if self.device.type == 'cuda':
+                    current_load_in_8bit = True
+                    logger.info(f"Configuring {model_key} for 8-bit quantization.")
+                else:
+                    logger.warning(f"8-bit quantization for {model_key} is only supported on CUDA. Loading in default precision on CPU.")
+            elif self.device.type == 'cuda': # For BART and BERT on CUDA
+                current_torch_dtype = torch.bfloat16 # A100 supports bfloat16
+                logger.info(f"Configuring {model_key} with dtype {current_torch_dtype}.")
+
+            model, tokenizer = load_local_model(
+                model_config_entry, 
+                model_key,
+                torch_dtype=current_torch_dtype,
+                load_in_8bit=current_load_in_8bit
+            )
 
             if model and tokenizer:
-                self.models[model_key] = model.to(self.device)
-                self.models[model_key].eval() # Set to evaluation mode
+                if not current_load_in_8bit: # If not 8-bit, move to device manually
+                    model = model.to(self.device)
+                
+                # Apply BetterTransformer if applicable (BART, BERT) and on CUDA
+                model_arch_type = get_model_type(model_name_for_type)
+                if model_arch_type in ["encoder-only", "encoder-decoder"] and "gpt" not in model_key.lower() and self.device.type == 'cuda':
+                    try:
+                        model = BetterTransformer.transform(model)
+                        logger.info(f"Applied BetterTransformer to {model_key}.")
+                    except Exception as e:
+                        logger.warning(f"Could not apply BetterTransformer to {model_key}: {e}")
+                
+                model.eval() # Set to evaluation mode
+                self.models[model_key] = model
                 self.tokenizers[model_key] = tokenizer
                 self.model_types[model_key] = get_model_type(model_config_entry['model_name'])
                 logger.info(f"Successfully loaded and configured model: {model_key}")
             else:
-                # This error will be raised if load_local_model returns (None, None)
                 logger.error(f"Failed to load model and tokenizer for {model_key}. Ensemble cannot be initialized.")
                 raise RuntimeError(f"Failed to load model and tokenizer for {model_key}.")
         
@@ -112,13 +143,19 @@ class EnsembleMajorityVoting:
                 text_batch,
                 return_tensors="pt",
                 truncation=True,
-                padding=True,
-                max_length=512  # Added max_length for robust padding/truncation
-            ).to(self.device)
+                padding="max_length", # Changed to max_length for consistency, helps with static shapes for compiled models
+                max_length=512
+            ).to(self.models[model_key].device) # Ensure inputs are on the same device as the model
             
             with torch.no_grad():
-                outputs = model(**inputs)
-                logits_batch = outputs.logits # Shape: (batch_size, num_classes)
+                # For bfloat16/float16 on CUDA, autocast can be beneficial if not using torch_dtype in from_pretrained
+                # However, with torch_dtype set at loading, it's often handled.
+                # For 8-bit, autocast is not typically needed.
+                # Adding it for safety for bfloat16 models if mixed precision parts exist.
+                cast_dtype = torch.bfloat16 if self.models[model_key].dtype == torch.bfloat16 else torch.float16
+                with torch.cuda.amp.autocast(enabled=(self.device.type == 'cuda' and not self.models[model_key].config.quantization_config.load_in_8bit), dtype=cast_dtype):
+                    outputs = model(**inputs)
+                logits_batch = outputs.logits
 
             # Get predictions for the entire batch
             # For AutoModelForSequenceClassification, logits are (batch_size, num_classes)
@@ -151,13 +188,14 @@ class EnsembleMajorityVoting:
             
         return final_batch_predictions_details
 
-    def evaluate(self, per_device_eval_batch_size=4, output_json_path=None):
+    def evaluate(self, per_device_eval_batch_size=4, output_json_path=None, num_dataloader_workers=4):
         """
         Evaluates the ensemble on the prepared test dataset.
 
         Args:
             per_device_eval_batch_size (int): Batch size for evaluation.
             output_json_path (str, optional): Path to save detailed predictions and summary.
+            num_dataloader_workers (int): Number of workers for DataLoader.
 
         Returns:
             dict: A dictionary containing evaluation metrics (e.g., accuracy).
@@ -166,33 +204,38 @@ class EnsembleMajorityVoting:
             logger.error("Test dataset not prepared for Ensemble. Call prepare_datasets() first or check for errors during preparation.")
             raise RuntimeError("Test dataset not prepared for Ensemble. Call prepare_datasets() first.")
 
-        dataset = self.test_dataset # Use the prepared dataset
+        dataset = self.test_dataset
         correct_predictions = 0
         total_predictions = 0
         all_detailed_predictions = []
 
         logger.info(f"Starting evaluation of ensemble on dataset with {len(dataset)} samples.")
-
-        # Utilizzo di tqdm per la barra di progresso
-        # Calcola il numero totale di batch per tqdm
-        num_batches = (len(dataset) + per_device_eval_batch_size - 1) // per_device_eval_batch_size
         
-        progress_bar = tqdm(range(num_batches), desc="Evaluating Ensemble")
+        # Use PyTorch DataLoader
+        # Ensure your self.test_dataset is compatible (Hugging Face datasets are)
+        # If it's a custom list of dicts, you might need a simple custom Dataset class
+        eval_dataloader = DataLoader(
+            dataset,
+            batch_size=per_device_eval_batch_size,
+            shuffle=False, # No need to shuffle for evaluation
+            num_workers=num_dataloader_workers if self.device.type == 'cuda' else 0, # num_workers > 0 can cause issues on CPU with some setups
+            pin_memory=True if self.device.type == 'cuda' else False
+        )
+        
+        progress_bar = tqdm(eval_dataloader, desc="Evaluating Ensemble")
 
-        for i in progress_bar:
-            start_index = i * per_device_eval_batch_size
-            end_index = start_index + per_device_eval_batch_size
-            
-            batch_texts = dataset['text'][start_index:end_index]
-            batch_labels = dataset['label'][start_index:end_index]
+        for batch in progress_bar:
+            # Assuming batch is a dictionary from Hugging Face dataset, containing 'text' and 'label'
+            batch_texts = batch['text']
+            batch_labels = batch['label'] # These are Python integers or list of integers
 
-            if not batch_texts: # Se il batch è vuoto (può succedere all'ultima iterazione se len(dataset) non è multiplo di batch_size)
+            if not batch_texts:
                 continue
 
             batch_prediction_details = self.predict(batch_texts)
 
             for idx, detail in enumerate(batch_prediction_details):
-                true_label = batch_labels[idx]
+                true_label = batch_labels[idx].item() if isinstance(batch_labels[idx], torch.Tensor) else batch_labels[idx]
                 ensemble_vote = detail['voted']
                 
                 if ensemble_vote == true_label:

@@ -120,7 +120,7 @@ class TqdmLoggingCallback(TrainerCallback):
 
 
 # New function to load models locally first
-def load_local_model(model_config_entry: dict, model_key_for_log: str):
+def load_local_model(model_config_entry: dict, model_key_for_log: str, torch_dtype=None, load_in_8bit=False):
     """
     Loads a model and tokenizer, prioritizing local paths.
     Order: repo_finetuned -> repo_downloaded -> model_name (from HF Hub).
@@ -130,6 +130,8 @@ def load_local_model(model_config_entry: dict, model_key_for_log: str):
         model_config_entry (dict): The configuration dictionary for the specific model
                                    (e.g., MODEL_CONFIGS['bart_base']).
         model_key_for_log (str): The key of the model (e.g., 'bart_base') for logging.
+        torch_dtype (torch.dtype, optional): The desired dtype for model weights (e.g., torch.float16).
+        load_in_8bit (bool, optional): Whether to load the model in 8-bit.
 
     Returns:
         tuple: (model, tokenizer) or (None, None) if loading fails.
@@ -153,7 +155,14 @@ def load_local_model(model_config_entry: dict, model_key_for_log: str):
         local_files_flag = config['local_only']
         logger.info(f"Attempting to load {model_key_for_log} from: {path_to_load} (source: {source_info}, local_files_only={local_files_flag})")
         try:
-            model = AutoModelForSequenceClassification.from_pretrained(path_to_load, local_files_only=local_files_flag)
+            model_kwargs = {}
+            if torch_dtype:
+                model_kwargs['torch_dtype'] = torch_dtype
+            if load_in_8bit:
+                model_kwargs['load_in_8bit'] = True
+                model_kwargs['device_map'] = 'auto' # bitsandbytes handles device placement
+
+            model = AutoModelForSequenceClassification.from_pretrained(path_to_load, local_files_only=local_files_flag, **model_kwargs)
             tokenizer = AutoTokenizer.from_pretrained(path_to_load, local_files_only=local_files_flag)
             logger.info(f"Successfully loaded {model_key_for_log} from {path_to_load} ({source_info})")
             return model, tokenizer

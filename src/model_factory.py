@@ -37,19 +37,30 @@ def get_model(model_config_key, use_downloaded: bool = False, **kwargs_for_model
         module = import_module(module_path)
         model_class = getattr(module, class_name)
 
-        # Gestione percorsi
-        if use_downloaded:
-            repo_finetuned = config.get('repo_downloaded', config.get('repo_finetuned'))
-        else:
-            repo_finetuned = config.get('repo_finetuned', config.get('repo'))
-
-        repo_pretrained = config.get('repo_pretrained', config.get('repo'))
-
-        # Se il modello è l'ensemble, ha bisogno solo di 'repo'
+        # Gestione percorsi e inizializzazione specifica
         if model_config_key == "ensemble_majority_voting":
-            return model_class(repo=config.get('repo'), use_downloaded=use_downloaded)
+            model_names = config.get('model_names')
+            if not model_names:
+                logger.error(f"Configuration for ensemble '{model_config_key}' is missing 'model_names'.")
+                raise ValueError(f"Ensemble '{model_config_key}' configuration error: 'model_names' not found.")
+            # EnsembleMajorityVoting si aspetta 'model_keys' e opzionalmente 'device' (tramite kwargs_for_model_init)
+            # 'use_downloaded' non è attualmente un parametro di EnsembleMajorityVoting.__init__
+            # Se dovesse esserlo, EnsembleMajorityVoting.__init__ andrebbe modificato e use_downloaded passato qui.
+            return model_class(model_keys=model_names, **kwargs_for_model_init)
+        else:
+            # Logica per modelli individuali
+            if use_downloaded:
+                repo_finetuned = config.get('repo_downloaded', config.get('repo_finetuned'))
+            else:
+                repo_finetuned = config.get('repo_finetuned', config.get('repo'))
 
-        return model_class(repo_finetuned=repo_finetuned, repo_pretrained=repo_pretrained)
+            repo_pretrained = config.get('repo_pretrained', config.get('repo'))
+
+            return model_class(
+                repo_finetuned=repo_finetuned,
+                repo_pretrained=repo_pretrained,
+                **kwargs_for_model_init  # Passa eventuali altri argomenti
+            )
 
     except (ImportError, AttributeError) as e:
         logger.error(f"Failed to import model {model_config_key}: {e}")

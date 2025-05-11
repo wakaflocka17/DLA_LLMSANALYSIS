@@ -1,8 +1,12 @@
 import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import logging
-from ..model_configs import MODEL_CONFIGS # Assuming MODEL_CONFIGS is accessible
-from ..utils import get_model_type, get_prediction, load_local_model # Import the new loading function
+import os
+import json
+from tqdm.auto import tqdm # Aggiunto import per tqdm
+from src.model_configs import MODEL_CONFIGS # Assuming MODEL_CONFIGS is accessible
+from src.utils import get_model_type, get_prediction, load_local_model 
+from src.data_preprocessing import load_imdb_dataset, create_splits # Moved load_imdb_dataset and create_splits here
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +51,44 @@ class EnsembleMajorityVoting:
         
         logger.info("EnsembleMajorityVoting initialized successfully.")
 
-    def predict(self, text_batch):
+    def prepare_datasets(self, max_samples: int = None):
+        """
+        Prepara i dataset per l'evaluation dell'ensemble.
+        Carica il dataset IMDB e applica uno split, memorizzando il test_dataset.
+        """
+        logger.info("Preparing dataset for EnsembleMajorityVoting (loading IMDB).")
+        try:
+            full_dataset = load_imdb_dataset()
+            # Assumiamo che create_splits restituisca train, validation, test
+            # Per l'ensemble, siamo interessati principalmente al test_dataset per la valutazione.
+            # Se create_splits ha una firma diversa, questo potrebbe necessitare di aggiustamenti.
+            _train_dataset, _val_dataset, self.test_dataset = create_splits(full_dataset)
+        except Exception as e:
+            logger.error(f"Failed to load or split dataset for Ensemble: {e}")
+            self.test_dataset = None
+            # Potrebbe essere opportuno sollevare l'eccezione se il caricamento del dataset è critico
+            # raise RuntimeError(f"Failed to load or split dataset for Ensemble: {e}") from e
+            return
+
+        if self.test_dataset and max_samples is not None:
+            if len(self.test_dataset) > max_samples:
+                try:
+                    self.test_dataset = self.test_dataset.shuffle(seed=42).select(range(max_samples))
+                    logger.info(f"Using a subset of {len(self.test_dataset)} samples for evaluation.")
+                except Exception as e:
+                    logger.error(f"Failed to select subset for test_dataset: {e}")
+            else:
+                logger.info(f"max_samples ({max_samples}) is >= dataset size ({len(self.test_dataset)}). Using full test dataset.")
+        
+        if not self.test_dataset:
+             logger.warning("Test dataset could not be prepared or is empty for EnsembleMajorityVoting.")
+        else:
+            logger.info(f"Dataset prepared for EnsembleMajorityVoting. Test set size: {len(self.test_dataset)}")
+
+    def predict(self, text_batch: list[str]):
         """
         Makes predictions for a batch of texts using the ensemble.
+        Processes the entire batch for each model to improve efficiency.
 
         Args:
             text_batch (list of str): A list of input texts.
@@ -57,68 +96,99 @@ class EnsembleMajorityVoting:
         Returns:
             list of dict: A list of prediction details for each text, including
                           individual model votes and the final ensemble vote.
-                          Example: [{'bart_base': 0, 'bert_base_uncased': 1, 'voted': 0, 'true_label': (optional)}]
         """
-        batch_predictions_details = []
+        # Store all predictions from all models for the batch
+        # Example: model_batch_predictions['bart_base'] = [pred0, pred1, pred2, pred3] for a batch of 4
+        model_batch_predictions = {model_key: [] for model_key in self.model_keys}
 
-        for text_idx, text in enumerate(text_batch):
-            votes = []
-            individual_model_preds = {}
+        for model_key in self.model_keys:
+            model = self.models[model_key]
+            tokenizer = self.tokenizers[model_key]
+            # model_type = self.model_types[model_key] # Not directly used for argmax with AutoModelForSequenceClassification
 
-            for model_key in self.model_keys:
-                model = self.models[model_key]
-                tokenizer = self.tokenizers[model_key]
-                model_type = self.model_types[model_key]
-
-                inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True).to(self.device)
-                
-                with torch.no_grad():
-                    outputs = model(**inputs)
-                    logits = outputs.logits
-                    prediction = get_prediction(logits, model_type)
-                
-                votes.append(prediction)
-                individual_model_preds[model_key] = prediction
+            # Tokenize the whole batch of texts
+            # Using a common max_length like 512 for consistency, truncation handles longer texts.
+            inputs = tokenizer(
+                text_batch,
+                return_tensors="pt",
+                truncation=True,
+                padding=True,
+                max_length=512  # Added max_length for robust padding/truncation
+            ).to(self.device)
             
-            # Majority voting
-            # This simple version takes the most common vote.
-            # More sophisticated tie-breaking can be added if needed.
+            with torch.no_grad():
+                outputs = model(**inputs)
+                logits_batch = outputs.logits # Shape: (batch_size, num_classes)
+
+            # Get predictions for the entire batch
+            # For AutoModelForSequenceClassification, logits are (batch_size, num_classes)
+            # .tolist() converts the tensor of predictions to a Python list of integers
+            batch_preds = logits_batch.argmax(dim=-1).tolist()
+            model_batch_predictions[model_key] = batch_preds
+
+        # Now, assemble the results for each item in the original batch
+        batch_size = len(text_batch)
+        final_batch_predictions_details = []
+
+        for i in range(batch_size): # Iterate through each item in the batch
+            votes = []
+            individual_model_preds_for_item = {}
+            for model_key in self.model_keys: # Collect votes for this item from all models
+                prediction_for_item = model_batch_predictions[model_key][i]
+                individual_model_preds_for_item[model_key] = prediction_for_item
+                votes.append(prediction_for_item)
+            
+            # Majority voting for the current item
             if votes:
                 final_vote = max(set(votes), key=votes.count)
             else:
-                final_vote = -1 # Or some other indicator of failure/no votes
-                logger.warning(f"No votes collected for text index {text_idx}: '{text[:50]}...'")
-
-
-            prediction_detail = {**individual_model_preds, "voted": final_vote}
-            batch_predictions_details.append(prediction_detail)
+                # This case should ideally not be reached if models are making predictions
+                final_vote = -1 
+                logger.warning(f"No votes collected for item index {i} in the current batch.")
             
-        return batch_predictions_details
+            prediction_detail = {**individual_model_preds_for_item, "voted": final_vote}
+            final_batch_predictions_details.append(prediction_detail)
+            
+        return final_batch_predictions_details
 
-    def evaluate(self, dataset, batch_size=4, output_json_path=None):
+    def evaluate(self, per_device_eval_batch_size=4, output_json_path=None):
         """
-        Evaluates the ensemble on a given dataset.
+        Evaluates the ensemble on the prepared test dataset.
 
         Args:
-            dataset (Dataset): A Hugging Face Dataset object with 'text' and 'label' columns.
-            batch_size (int): Batch size for evaluation.
+            per_device_eval_batch_size (int): Batch size for evaluation.
             output_json_path (str, optional): Path to save detailed predictions and summary.
 
         Returns:
             dict: A dictionary containing evaluation metrics (e.g., accuracy).
         """
+        if not hasattr(self, 'test_dataset') or self.test_dataset is None:
+            logger.error("Test dataset not prepared for Ensemble. Call prepare_datasets() first or check for errors during preparation.")
+            raise RuntimeError("Test dataset not prepared for Ensemble. Call prepare_datasets() first.")
+
+        dataset = self.test_dataset # Use the prepared dataset
         correct_predictions = 0
         total_predictions = 0
         all_detailed_predictions = []
 
         logger.info(f"Starting evaluation of ensemble on dataset with {len(dataset)} samples.")
 
-        for i in range(0, len(dataset), batch_size):
-            batch_texts = dataset['text'][i:i+batch_size]
-            batch_labels = dataset['label'][i:i+batch_size]
+        # Utilizzo di tqdm per la barra di progresso
+        # Calcola il numero totale di batch per tqdm
+        num_batches = (len(dataset) + per_device_eval_batch_size - 1) // per_device_eval_batch_size
+        
+        progress_bar = tqdm(range(num_batches), desc="Evaluating Ensemble")
 
-            # Get predictions from the ensemble
-            # The predict method now returns a list of dicts, one for each item in batch_texts
+        for i in progress_bar:
+            start_index = i * per_device_eval_batch_size
+            end_index = start_index + per_device_eval_batch_size
+            
+            batch_texts = dataset['text'][start_index:end_index]
+            batch_labels = dataset['label'][start_index:end_index]
+
+            if not batch_texts: # Se il batch è vuoto (può succedere all'ultima iterazione se len(dataset) non è multiplo di batch_size)
+                continue
+
             batch_prediction_details = self.predict(batch_texts)
 
             for idx, detail in enumerate(batch_prediction_details):
@@ -129,11 +199,12 @@ class EnsembleMajorityVoting:
                     correct_predictions += 1
                 total_predictions += 1
                 
-                # Store detailed prediction including true label
                 all_detailed_predictions.append({**detail, "true_label": true_label})
 
-            if (i // batch_size) % 10 == 0: # Log progress every 10 batches
-                 logger.info(f"Processed {i + len(batch_texts)} / {len(dataset)} samples...")
+            # Aggiorna la descrizione della progress bar (opzionale, ma può essere utile)
+            # if total_predictions > 0:
+            #     current_accuracy = correct_predictions / total_predictions
+            #     progress_bar.set_postfix({"Acc": f"{current_accuracy:.3f}"})
 
 
         accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
@@ -148,7 +219,11 @@ class EnsembleMajorityVoting:
         if output_json_path:
             results_to_save = {**results, "detailed_predictions": all_detailed_predictions}
             try:
-                os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
+                # Ensure the directory exists
+                output_dir = os.path.dirname(output_json_path)
+                if output_dir: # Check if output_dir is not an empty string (e.g. if path is just a filename)
+                    os.makedirs(output_dir, exist_ok=True)
+                
                 with open(output_json_path, 'w') as f:
                     json.dump(results_to_save, f, indent=4)
                 logger.info(f"Ensemble evaluation results saved to {output_json_path}")

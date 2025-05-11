@@ -30,8 +30,11 @@ def get_prediction(logits, model_type: str):
     if model_type in ["encoder-only", "encoder-decoder"]:
         return logits.argmax(dim=-1).item()
     elif model_type == "decoder-only":
-        # Nel caso decoder-only potrebbe essere necessario prendere l'ultimo token
-        return logits[:, -1, :].argmax(dim=-1).item()
+        # Per AutoModelForSequenceClassification, i logits sono (batch_size, num_classes)
+        # anche per i modelli decoder-only, poiché l'head di classificazione gestisce il pooling.
+        # La riga originale `logits[:, -1, :].argmax(dim=-1).item()` presumeva
+        # che i logits fossero (batch_size, sequence_length, num_classes), il che non è il caso qui.
+        return logits.argmax(dim=-1).item() # Riga corretta
     else:
         raise ValueError("Tipo modello non supportato")
 

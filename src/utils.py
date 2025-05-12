@@ -152,7 +152,7 @@ def load_local_model(
         tuple: (model, tokenizer) or (None, None) if loading fails.
     """
     model_name = model_config_entry.get('model_name')
-    repo_finetuned = model_config_entry.get('repo_finetuned')
+    repo_finetuned = model_config_entry.get('repo_finetuned') # This will now pick up the corrected path
     repo_downloaded = model_config_entry.get('repo_downloaded')
 
     paths_to_try = []

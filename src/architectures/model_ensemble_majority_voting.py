@@ -153,7 +153,7 @@ class EnsembleMajorityVoting:
                 # For 8-bit, autocast is not typically needed.
                 # Adding it for safety for bfloat16 models if mixed precision parts exist.
                 cast_dtype = torch.bfloat16 if self.models[model_key].dtype == torch.bfloat16 else torch.float16
-                with torch.cuda.amp.autocast(enabled=(self.device.type == 'cuda' and not self.models[model_key].config.quantization_config.load_in_8bit), dtype=cast_dtype):
+                with torch.amp.autocast("cuda", enabled=(self.device.type == 'cuda' and not self.models[model_key].config.quantization_config.load_in_8bit), dtype=cast_dtype):
                     outputs = model(**inputs)
                 logits_batch = outputs.logits
 

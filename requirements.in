@@ -1,0 +1,21 @@
+# Pin transformers to the required version
+transformers==4.28.0
+
+# Pin compatible optimum version with onnxruntime extra
+optimum[onnxruntime]==1.20.0
+
+# Pin accelerate to a compatible version for Trainer
+accelerate>=0.20.1
+
+# Add other direct dependencies of your project here if needed, e.g.:
+# bitsandbytes
+# datasets
+# torch
+# evaluate
+# matplotlib
+# numpy<2.0.0
+# scikit-learn
+# tensorflow
+# fsspec
+# huggingface_hub
+# tqdm

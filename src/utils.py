@@ -134,7 +134,8 @@ def load_local_model(
     ):
     """
     Loads a model and tokenizer, prioritizing local paths and applying optimizations.
-    Order: repo_finetuned -> repo_downloaded -> model_name (from HF Hub).
+    If 'repo_finetuned' is specified, it's strictly used and validated.
+    Otherwise, falls back to repo_downloaded -> model_name (from HF Hub).
     Uses local_files_only=True for local attempts.
 
     Args:
@@ -155,13 +156,49 @@ def load_local_model(
     repo_downloaded = model_config_entry.get('repo_downloaded')
 
     paths_to_try = []
+
     if repo_finetuned:
+        logger.info(f"[{model_key_for_log}] 'repo_finetuned' is specified: {repo_finetuned}. Strict checks will be applied.")
+        
+        # Perform strict checks for the fine-tuned directory as per requirements
+        if not os.path.isdir(repo_finetuned):
+            raise RuntimeError(f"Fine-tuned model directory not found: {repo_finetuned} for model {model_key_for_log}")
+
+        # Check for essential model and config files
+        required_model_files = ["pytorch_model.bin", "config.json", "tokenizer_config.json"]
+        for req_file in required_model_files:
+            if not os.path.isfile(os.path.join(repo_finetuned, req_file)):
+                raise RuntimeError(f"Missing required file '{req_file}' in {repo_finetuned} for model {model_key_for_log}")
+
+        # Check for tokenizer data files (at least one pattern must match)
+        has_tokenizer_json = os.path.isfile(os.path.join(repo_finetuned, "tokenizer.json"))
+        has_vocab_txt = os.path.isfile(os.path.join(repo_finetuned, "vocab.txt")) # For BERT-like tokenizers
+        has_vocab_json = os.path.isfile(os.path.join(repo_finetuned, "vocab.json")) # For BPE-based tokenizers (e.g., GPT-2, BART)
+        has_merges_txt = os.path.isfile(os.path.join(repo_finetuned, "merges.txt")) # For BPE-based tokenizers
+
+        if not (has_tokenizer_json or has_vocab_txt or (has_vocab_json and has_merges_txt)):
+            missing_files_detail = "tokenizer.json OR vocab.txt OR (vocab.json AND merges.txt)"
+            raise RuntimeError(
+                f"Missing tokenizer data files ({missing_files_detail}) in {repo_finetuned} for model {model_key_for_log}"
+            )
+        
+        # If all checks passed, this is the only path to try
         paths_to_try.append({'path': repo_finetuned, 'source': 'fine-tuned (local)', 'local_only': True})
-    if repo_downloaded:
-        paths_to_try.append({'path': repo_downloaded, 'source': 'downloaded (local)', 'local_only': True})
-    if model_name: # Fallback to Hugging Face Hub
-        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub', 'local_only': False})
-        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub (local cache attempt)', 'local_only': True})
+    
+    else: # No repo_finetuned specified, use original fallback logic
+        logger.info(f"[{model_key_for_log}] No 'repo_finetuned' path specified. Will attempt fallbacks (downloaded, Hugging Face Hub).")
+        if repo_downloaded:
+            paths_to_try.append({'path': repo_downloaded, 'source': 'downloaded (local)', 'local_only': True})
+        if model_name: # Fallback to Hugging Face Hub
+            paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub', 'local_only': False})
+            paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub (local cache attempt)', 'local_only': True})
+
+    if not paths_to_try:
+        # This case would occur if repo_finetuned was not specified, and neither repo_downloaded nor model_name were.
+        # Or if repo_finetuned was specified but failed checks (already raised RuntimeError).
+        logger.error(f"[{model_key_for_log}] No valid paths to attempt loading the model.")
+        # Raising an error here ensures that if configuration is incomplete, it's flagged.
+        raise RuntimeError(f"No load paths could be determined for model {model_key_for_log} based on configuration and checks.")
 
     # Determine torch_dtype and load_in_8bit based on flags
     torch_dtype_arg = None

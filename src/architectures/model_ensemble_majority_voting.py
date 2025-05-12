@@ -52,16 +52,19 @@ class EnsembleMajorityVoting:
                 load_in_8bit_override_flag = True
                 logger.info(f"Configuring {model_key} for 8-bit quantization (override).")
 
-
-            model, tokenizer = load_local_model(
-                model_config_entry,
-                model_key,
-                accelerator=self.accelerator,
-                use_amp=self.use_amp,
-                use_bettertransformer=self.use_bettertransformer, # Pass this down
-                use_onnxruntime=self.use_onnxruntime, # Pass this down
-                load_in_8bit_override=load_in_8bit_override_flag
-            )
+            try: # Add try-except block here
+                model, tokenizer = load_local_model(
+                    model_config_entry,
+                    model_key,
+                    accelerator=self.accelerator,
+                    use_amp=self.use_amp,
+                    use_bettertransformer=self.use_bettertransformer, # Pass this down
+                    use_onnxruntime=self.use_onnxruntime, # Pass this down
+                    load_in_8bit_override=load_in_8bit_override_flag
+                )
+            except RuntimeError as e:
+                logger.error(f"Fine-tuned checkpoint for {model_key} missing or invalid: {e}")
+                raise # Re-raise the exception to stop initialization
 
             if model and tokenizer:
                 # Check if the loaded model is an ONNX model

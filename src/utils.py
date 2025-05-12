@@ -5,7 +5,10 @@ from huggingface_hub import create_repo, upload_folder, upload_file
 import os
 import logging
 from tqdm import tqdm
-from transformers import TrainerCallback, AutoModelForSequenceClassification, AutoTokenizer # Added AutoModelForSequenceClassification, AutoTokenizer
+from transformers import TrainerCallback, AutoModelForSequenceClassification, AutoTokenizer
+from optimum.bettertransformer import BetterTransformer # Added
+from optimum.onnxruntime import ORTModelForSequenceClassification # Added
+import shutil # For cleaning up ONNX export cache if needed
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -120,18 +123,29 @@ class TqdmLoggingCallback(TrainerCallback):
 
 
 # New function to load models locally first
-def load_local_model(model_config_entry: dict, model_key_for_log: str, torch_dtype=None, load_in_8bit=False):
+def load_local_model(
+    model_config_entry: dict, 
+    model_key_for_log: str, 
+    accelerator, # Added
+    use_amp: bool, # Added
+    use_bettertransformer: bool, # Added
+    use_onnxruntime: bool, # Added
+    load_in_8bit_override: bool = False # To allow specific 8-bit loading for models like GPT-Neo
+    ):
     """
-    Loads a model and tokenizer, prioritizing local paths.
+    Loads a model and tokenizer, prioritizing local paths and applying optimizations.
     Order: repo_finetuned -> repo_downloaded -> model_name (from HF Hub).
     Uses local_files_only=True for local attempts.
 
     Args:
-        model_config_entry (dict): The configuration dictionary for the specific model
-                                   (e.g., MODEL_CONFIGS['bart_base']).
-        model_key_for_log (str): The key of the model (e.g., 'bart_base') for logging.
-        torch_dtype (torch.dtype, optional): The desired dtype for model weights (e.g., torch.float16).
-        load_in_8bit (bool, optional): Whether to load the model in 8-bit.
+        model_config_entry (dict): Config for the model.
+        model_key_for_log (str): Model key for logging.
+        accelerator (Accelerator): The Accelerator object.
+        use_amp (bool): Whether AMP (fp16) is enabled via Accelerator.
+        use_bettertransformer (bool): Whether to apply BetterTransformer.
+        use_onnxruntime (bool): Whether to attempt loading an ONNX model.
+        load_in_8bit_override (bool): Specific flag for 8-bit, e.g. for GPT-Neo.
+
 
     Returns:
         tuple: (model, tokenizer) or (None, None) if loading fails.
@@ -146,25 +160,91 @@ def load_local_model(model_config_entry: dict, model_key_for_log: str, torch_dty
     if repo_downloaded:
         paths_to_try.append({'path': repo_downloaded, 'source': 'downloaded (local)', 'local_only': True})
     if model_name: # Fallback to Hugging Face Hub
-        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub', 'local_only': False}) # Try with network if local fails
-        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub (local cache attempt)', 'local_only': True}) # Also try local_files_only for model_name
+        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub', 'local_only': False})
+        paths_to_try.append({'path': model_name, 'source': 'Hugging Face Hub (local cache attempt)', 'local_only': True})
 
-    for config in paths_to_try:
-        path_to_load = config['path']
-        source_info = config['source']
-        local_files_flag = config['local_only']
+    # Determine torch_dtype and load_in_8bit based on flags
+    torch_dtype_arg = None
+    load_in_8bit_arg = load_in_8bit_override
+    
+    if not load_in_8bit_arg and use_amp and accelerator.device.type == 'cuda':
+        torch_dtype_arg = torch.float16 # For AMP
+        logger.info(f"[{model_key_for_log}] AMP enabled, setting torch_dtype to float16 for PyTorch model loading.")
+    
+    if load_in_8bit_override: # Explicit 8-bit request (e.g., for GPT-Neo on CUDA)
+         logger.info(f"[{model_key_for_log}] 8-bit loading is specifically enabled.")
+
+
+    for config_path_info in paths_to_try:
+        path_to_load = config_path_info['path']
+        source_info = config_path_info['source']
+        local_files_flag = config_path_info['local_only']
+        
         logger.info(f"Attempting to load {model_key_for_log} from: {path_to_load} (source: {source_info}, local_files_only={local_files_flag})")
+        
+        model = None
+        tokenizer = None
+
         try:
+            if use_onnxruntime:
+                logger.info(f"[{model_key_for_log}] Attempting to load ONNX model from {path_to_load}")
+                try:
+                    # Optimum expects the directory containing model.onnx
+                    # Ensure the onnx model exists at this path or a sub-path
+                    # For simplicity, let's assume path_to_load could be an ONNX model directory
+                    onnx_model_path = path_to_load 
+                    if os.path.exists(os.path.join(onnx_model_path, "model.onnx")): # Check if it's an ONNX dir
+                        model = ORTModelForSequenceClassification.from_pretrained(
+                            onnx_model_path, 
+                            local_files_only=local_files_flag,
+                            # provider="CUDAExecutionProvider" # if on GPU, Optimum might handle this
+                        )
+                        tokenizer = AutoTokenizer.from_pretrained(onnx_model_path, local_files_only=local_files_flag)
+                        logger.info(f"Successfully loaded ONNX model {model_key_for_log} from {onnx_model_path}")
+                        # ONNX models don't use BetterTransformer or torch_dtype in the same way
+                        return model, tokenizer
+                    else:
+                        logger.warning(f"[{model_key_for_log}] No model.onnx found in {onnx_model_path}. Will try PyTorch model.")
+                except Exception as e:
+                    logger.warning(f"[{model_key_for_log}] Failed to load ONNX model from {path_to_load}: {e}. Falling back to PyTorch.")
+            
+            # PyTorch model loading
             model_kwargs = {}
-            if torch_dtype:
-                model_kwargs['torch_dtype'] = torch_dtype
-            if load_in_8bit:
-                model_kwargs['load_in_8bit'] = True
-                model_kwargs['device_map'] = 'auto' # bitsandbytes handles device placement
+            if torch_dtype_arg and not load_in_8bit_arg : # Don't set torch_dtype if 8-bit
+                model_kwargs['torch_dtype'] = torch_dtype_arg
+            
+            if load_in_8bit_arg: # load_in_8bit_override
+                if accelerator.device.type == 'cuda':
+                    model_kwargs['load_in_8bit'] = True
+                    model_kwargs['device_map'] = 'auto' # Recommended for 8-bit
+                else:
+                    logger.warning(f"[{model_key_for_log}] 8-bit loading requested but not on CUDA. Loading in default precision.")
 
             model = AutoModelForSequenceClassification.from_pretrained(path_to_load, local_files_only=local_files_flag, **model_kwargs)
             tokenizer = AutoTokenizer.from_pretrained(path_to_load, local_files_only=local_files_flag)
-            logger.info(f"Successfully loaded {model_key_for_log} from {path_to_load} ({source_info})")
+            logger.info(f"Successfully loaded PyTorch model {model_key_for_log} from {path_to_load} ({source_info})")
+
+            # Apply BetterTransformer if requested and model is PyTorch
+            if use_bettertransformer and not load_in_8bit_arg and not isinstance(model, ORTModelForSequenceClassification):
+                if accelerator.device.type == 'cuda': # BetterTransformer typically for CUDA
+                    try:
+                        # Ensure model is on the correct device before transform if not handled by device_map
+                        if 'device_map' not in model_kwargs:
+                             model = model.to(accelerator.device)
+                        model = BetterTransformer.transform(model, keep_original_model=False)
+                        logger.info(f"[{model_key_for_log}] Applied BetterTransformer.")
+                    except Exception as e:
+                        logger.warning(f"[{model_key_for_log}] Could not apply BetterTransformer: {e}")
+                else:
+                    logger.info(f"[{model_key_for_log}] BetterTransformer requested but not on CUDA, skipping.")
+            
+            # Device placement for PyTorch models if not handled by device_map (e.g. not 8-bit)
+            # Accelerator.prepare() will handle final device placement.
+            # Here, we ensure it's on a device if BetterTransformer was applied or for consistency.
+            if not isinstance(model, ORTModelForSequenceClassification) and 'device_map' not in model_kwargs:
+                 model = model.to(accelerator.device)
+
+
             return model, tokenizer
         except OSError:
             logger.warning(f"Failed to load {model_key_for_log} from {path_to_load} ({source_info}) with local_files_only={local_files_flag}. It might not exist or not be a valid model directory.")

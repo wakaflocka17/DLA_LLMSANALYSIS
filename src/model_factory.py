@@ -13,7 +13,8 @@ def get_model(model_config_key, use_downloaded: bool = False, **kwargs_for_model
         use_downloaded: If True, instructs individual models (or ensemble members)
                         to attempt loading from 'repo_downloaded' path first.
         **kwargs_for_model_init: Additional keyword arguments to pass to the model's constructor.
-
+                                 Expected to include: accelerator, use_amp, 
+                                 use_bettertransformer, use_onnxruntime.
     Returns:
         An instance of the appropriate model class.
     """
@@ -43,12 +44,12 @@ def get_model(model_config_key, use_downloaded: bool = False, **kwargs_for_model
             if not model_names:
                 logger.error(f"Configuration for ensemble '{model_config_key}' is missing 'model_names'.")
                 raise ValueError(f"Ensemble '{model_config_key}' configuration error: 'model_names' not found.")
-            # EnsembleMajorityVoting si aspetta 'model_keys' e opzionalmente 'device' (tramite kwargs_for_model_init)
-            # 'use_downloaded' non è attualmente un parametro di EnsembleMajorityVoting.__init__
-            # Se dovesse esserlo, EnsembleMajorityVoting.__init__ andrebbe modificato e use_downloaded passato qui.
+            # EnsembleMajorityVoting expects 'model_keys' and other optimization args via kwargs_for_model_init
             return model_class(model_keys=model_names, **kwargs_for_model_init)
         else:
             # Logica per modelli individuali
+            # Individual models would also need to be updated to handle these kwargs if they are to be optimized.
+            # For now, the primary focus is the ensemble.
             if use_downloaded:
                 repo_finetuned = config.get('repo_downloaded', config.get('repo_finetuned'))
             else:
@@ -59,7 +60,7 @@ def get_model(model_config_key, use_downloaded: bool = False, **kwargs_for_model
             return model_class(
                 repo_finetuned=repo_finetuned,
                 repo_pretrained=repo_pretrained,
-                **kwargs_for_model_init  # Passa eventuali altri argomenti
+                **kwargs_for_model_init  # Pass accelerator and other optimization args
             )
 
     except (ImportError, AttributeError) as e:

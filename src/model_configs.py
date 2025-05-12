@@ -25,11 +25,11 @@ MODEL_CONFIGS = {
         "model_name": "EleutherAI/gpt-neo-2.7B",
         "repo_pretrained": "EleutherAI/gpt-neo-2.7B",
         # Updated to point to the likely actual location of the fine-tuned model
-        "repo_finetuned": "models/finetuned/gpt-neo-2.7B-imdb", # Corrected path
-        "repo_downloaded": "models/downloaded/gpt_neo_2_7b", # Path for base downloaded model if different
-        "epochs": 1, # Example
-        "train_batch_size": 1, # Example
-        "eval_batch_size": 1,  # Example
+        "repo_finetuned": "models/gpt_neo_2_7b", # This path is used
+        "repo_downloaded": "models/downloaded/gpt_neo_2_7b", 
+        "epochs": 1, 
+        "train_batch_size": 1, 
+        "eval_batch_size": 1,  
         "num_labels": 2,
     },
     "ensemble_majority_voting": {

@@ -141,5 +141,18 @@ def main():
                 result = model.evaluate(**eval_kwargs)
         logger.info(f"Risultati evaluation: {result}")
 
+        # Save the ensemble model if it's the ensemble_majority_voting model
+        if args.model_config_key == 'ensemble_majority_voting' and hasattr(model, 'save'):
+            if 'repo' in MODEL_CONFIGS['ensemble_majority_voting']:
+                save_path = MODEL_CONFIGS['ensemble_majority_voting']['repo']
+                logger.info(f"Attempting to save ensemble model to: {save_path}")
+                model.save(save_path) # Call the new save method
+                # The save method itself logs success/failure only on the main process
+                if accelerator.is_local_main_process:
+                    logger.info(f"Ensemble model saving process initiated. Check logs for details. Target path: {save_path}")
+            else:
+                logger.error(f"Cannot save ensemble: 'repo' path not defined in MODEL_CONFIGS for '{args.model_config_key}'.")
+
+
 if __name__ == "__main__":
     main()

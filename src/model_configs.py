@@ -1,40 +1,39 @@
 MODEL_CONFIGS = {
-    'bart_base': {
-        'model_name': 'facebook/bart-base',
-        'epochs': 5,
-        'train_batch_size': 8,
-        'eval_batch_size': 4,
-        'learning_rate': 2e-5,
-        'repo_pretrained': 'models/pretrained/bart-base',
-        'repo_finetuned': 'models/finetuned/bart-base-imdb',
-        'repo_downloaded': 'models/bart_base'
+    "bert_base_uncased": {
+        "model_name": "bert-base-uncased",
+        "repo_pretrained": "bert-base-uncased", # HF Hub name
+        "repo_finetuned": "models/finetuned/bert-base-uncased-imdb", # Local path to fine-tuned version
+        "repo_downloaded": "models/downloaded/bert_base_uncased", # Local path to downloaded HF model
+        "epochs": 3,
+        "train_batch_size": 16,
+        "eval_batch_size": 32,
+        "num_labels": 2,
     },
-    'bert_base_uncased': {
-        'model_name': 'google-bert/bert-base-uncased',
-        'epochs': 5,
-        'train_batch_size': 8,
-        'eval_batch_size': 4,
-        'learning_rate': 2e-5,
-        'repo_pretrained': 'models/pretrained/bert-base-uncased',
-        'repo_finetuned': 'models/finetuned/bert-base-uncased-imdb',
-        'repo_downloaded': 'models/bert_base_uncased'
+    "bart_base": {
+        "model_name": "facebook/bart-base",
+        "repo_pretrained": "facebook/bart-base",
+        "repo_finetuned": "models/finetuned/bart-base-imdb",
+        "repo_downloaded": "models/downloaded/bart_base",
+        "epochs": 3,
+        "train_batch_size": 8,
+        "eval_batch_size": 16,
+        "num_labels": 2,
     },
-    'gpt_neo_2_7b': {
-        'model_name': 'EleutherAI/gpt-neo-2.7B',
-        'epochs': 3,
-        'train_batch_size': 1,
-        'eval_batch_size': 1,
-        'learning_rate': 1e-5,
-        'gradient_accumulation_steps': 8,
-        'repo_pretrained': 'models/pretrained/gpt-neo-2.7B',
-        'repo_finetuned': 'models/finetuned/gpt-neo-2.7B-imdb',
-        'repo_downloaded': 'models/gpt_neo_2_7b'
+    "gpt_neo_2_7b": {
+        "model_name": "EleutherAI/gpt-neo-2.7B",
+        "repo_pretrained": "EleutherAI/gpt-neo-2.7B",
+        "repo_finetuned": "models/finetuned/gpt-neo-2.7B-imdb",
+        "repo_downloaded": "models/downloaded/gpt_neo_2_7b",
+        "epochs": 1, # Example
+        "train_batch_size": 1, # Example
+        "eval_batch_size": 1,  # Example
+        "num_labels": 2,
     },
-    'ensemble_majority_voting': {
-        'model_names': ['bart_base', 'bert_base_uncased', 'gpt_neo_2_7b'],
-        'train_batch_size': 8, # Non rilevante per l'eval che stiamo ottimizzando
-        'eval_batch_size': 64,  # Aumentato da 4. Prova 32, 64, o 128. Monitora la VRAM.
-        'epochs': 3,
-        'repo': 'models/ensemble/majority-voting-imdb'
+    "ensemble_majority_voting": {
+        "model_names": ["bert_base_uncased", "bart_base"], # Add all model keys part of the ensemble
+        "repo": "models/ensemble_majority_voting", # This is the directory where the ensemble will be saved
+        "eval_batch_size": 64, # Example, can be overridden
+        # Add other ensemble specific configs if any
     }
+    # Add other model configurations as needed
 }

@@ -317,6 +317,115 @@ class EnsembleMajorityVoting:
             return results
         return {} # Other processes return empty or None
 
+    def save(self, save_dir: str):
+        """
+        Saves the ensemble model configuration, one tokenizer, and individual PyTorch models.
+        Only runs on the main process.
+        """
+        if not self.accelerator.is_local_main_process:
+            logger.info(f"Process {self.accelerator.process_index} is not main process. Skipping save.")
+            return
+
+        logger.info(f"Saving ensemble to {save_dir} on main process...")
+        os.makedirs(save_dir, exist_ok=True)
+
+        # 1. Save metadata.json listing model_names
+        metadata_path = os.path.join(save_dir, "metadata.json")
+        metadata = {"model_names": self.model_keys}
+        try:
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f, indent=4)
+            logger.info(f"Saved ensemble metadata to {metadata_path}")
+        except Exception as e:
+            logger.error(f"Failed to save metadata.json: {e}")
+
+        # 2. Save combined config.json for the ensemble
+        num_labels = 2  # Default
+        if self.model_keys and self.models:
+            first_model_key = self.model_keys[0]
+            if first_model_key in self.models:
+                try:
+                    unwrapped_model = self.accelerator.unwrap_model(self.models[first_model_key])
+                    if hasattr(unwrapped_model, 'config') and hasattr(unwrapped_model.config, 'num_labels'):
+                        num_labels = unwrapped_model.config.num_labels
+                    else:
+                        logger.warning(f"Could not determine num_labels from model {first_model_key}. Defaulting to {num_labels}.")
+                except Exception as e:
+                    logger.warning(f"Error accessing config for num_labels from {first_model_key}: {e}. Defaulting to {num_labels}.")
+        
+        ensemble_config_path = os.path.join(save_dir, "config.json")
+        ensemble_config_data = {
+            "ensemble_type": "majority_voting",
+            "model_keys": self.model_keys,
+            "num_labels": num_labels,
+            "device_used_during_init": str(self.device), # Storing the device used at init
+            "architectures": ["EnsembleMajorityVoting"] 
+        }
+        try:
+            with open(ensemble_config_path, 'w') as f:
+                json.dump(ensemble_config_data, f, indent=4)
+            logger.info(f"Saved ensemble config to {ensemble_config_path}")
+        except Exception as e:
+            logger.error(f"Failed to save ensemble config.json: {e}")
+
+        # 3. Save one tokenizer (e.g., from the first model)
+        if self.model_keys and self.tokenizers:
+            # Try to find a non-empty tokenizer
+            tokenizer_to_save = None
+            saved_tokenizer_key = None
+            for key in self.model_keys:
+                if key in self.tokenizers and self.tokenizers[key] is not None:
+                    tokenizer_to_save = self.tokenizers[key]
+                    saved_tokenizer_key = key
+                    break
+            
+            if tokenizer_to_save and saved_tokenizer_key:
+                try:
+                    tokenizer_to_save.save_pretrained(save_dir)
+                    logger.info(f"Saved tokenizer from {saved_tokenizer_key} to {save_dir}")
+                except Exception as e:
+                    logger.error(f"Failed to save tokenizer from {saved_tokenizer_key}: {e}")
+            else:
+                logger.warning("No suitable tokenizer found to save for the ensemble.")
+        else:
+            logger.warning("No model keys or tokenizers available to save a tokenizer.")
+
+        # 4. Save each sub-model (weights and its own config) into subdirectories
+        # This handles PyTorch models. ONNX models are typically not saved via save_pretrained.
+        for model_key in self.model_keys:
+            if model_key in self.models and not self.is_onnx_model.get(model_key, False):
+                model_instance = self.models[model_key]
+                unwrapped_model = self.accelerator.unwrap_model(model_instance)
+                
+                model_specific_save_path = os.path.join(save_dir, model_key)
+                os.makedirs(model_specific_save_path, exist_ok=True)
+                
+                try:
+                    unwrapped_model.save_pretrained(model_specific_save_path)
+                    logger.info(f"Saved PyTorch model {model_key} to {model_specific_save_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save PyTorch model {model_key} to {model_specific_save_path}: {e}")
+            elif self.is_onnx_model.get(model_key, False):
+                logger.info(f"Model {model_key} is an ONNX model. ONNX models are not saved using 'save_pretrained'. "
+                            f"Ensure the ONNX model files are correctly structured if they need to be part of the upload.")
+                # If ONNX models are loaded from a directory that should be part of the ensemble artifact,
+                # you might need to copy that directory into `save_dir/model_key/`.
+                # For example:
+                # source_onnx_dir = MODEL_CONFIGS[model_key].get('repo_finetuned') # or wherever it was loaded from
+                # if source_onnx_dir and os.path.isdir(source_onnx_dir):
+                #     target_onnx_dir = os.path.join(save_dir, model_key)
+                #     if os.path.exists(target_onnx_dir):
+                #         shutil.rmtree(target_onnx_dir) # Clear if exists
+                #     shutil.copytree(source_onnx_dir, target_onnx_dir)
+                #     logger.info(f"Copied ONNX model {model_key} files to {target_onnx_dir}")
+                # else:
+                #     logger.warning(f"Could not determine source directory for ONNX model {model_key} to copy.")
+            else:
+                logger.warning(f"Model {model_key} not found in loaded models or is not a PyTorch model eligible for save_pretrained.")
+        
+        logger.info(f"Ensemble saving process complete for {save_dir}.")
+
+
 # Example of how it might be called from evaluate_ensemble.py
 # This is illustrative and depends on the structure of evaluate_ensemble.py
 if __name__ == '__main__':

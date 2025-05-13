@@ -7,7 +7,6 @@ MODELS_TO_UPLOAD = {
     "bert-base-uncased-imdb": "wakaflocka17/bert-imdb-finetuned",
     "bart-base-imdb": "wakaflocka17/bart-imdb-finetuned",
     "gpt-neo-2.7B-imdb": "wakaflocka17/gptneo-imdb-finetuned",
-    # "majority-voting-imdb": "wakaflocka17/ensemble-majority-voting-imdb" # Old key
     "ensemble_majority_voting": "wakaflocka17/ensemble-majority-voting-imdb" # New key, ensure HF repo ID is what you want
 }
 

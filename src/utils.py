@@ -164,11 +164,19 @@ def load_local_model(
         if not os.path.isdir(repo_finetuned):
             raise RuntimeError(f"Fine-tuned model directory not found: {repo_finetuned} for model {model_key_for_log}")
 
-        # Check for essential model and config files
-        required_model_files = ["pytorch_model.bin", "config.json", "tokenizer_config.json"]
-        for req_file in required_model_files:
+        # Check for essential config files (model weights checked separately)
+        # Accept either a single .bin or sharded checkpoint with an index file
+        required_files = ["config.json", "tokenizer_config.json"]
+        for req_file in required_files:
             if not os.path.isfile(os.path.join(repo_finetuned, req_file)):
                 raise RuntimeError(f"Missing required file '{req_file}' in {repo_finetuned} for model {model_key_for_log}")
+
+        # Check for model weights (either single .bin or .index.json for shards)
+        has_bin = os.path.isfile(os.path.join(repo_finetuned, "pytorch_model.bin"))
+        has_index = os.path.isfile(os.path.join(repo_finetuned, "pytorch_model.bin.index.json"))
+        if not (has_bin or has_index):
+            missing = "pytorch_model.bin or pytorch_model.bin.index.json"
+            raise RuntimeError(f"Missing required checkpoint file ({missing}) in {repo_finetuned} for model {model_key_for_log}")
 
         # Check for tokenizer data files (at least one pattern must match)
         has_tokenizer_json = os.path.isfile(os.path.join(repo_finetuned, "tokenizer.json"))

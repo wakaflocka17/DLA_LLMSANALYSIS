@@ -11,3 +11,7 @@ transformers==4.28.0
     # via -r requirements.in
 # ... other transformers dependencies like huggingface-hub, tokenizers, etc. ...
 # ... and all other transitive dependencies ...
+
+scikit-learn==1.2.2
+
+numpy==1.23.5

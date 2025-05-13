@@ -8,10 +8,17 @@ def load_metrics(folder):
     for fname in os.listdir(folder):
         if fname.endswith(".json"):
             path = os.path.join(folder, fname)
-            with open(path) as f:
-                data = json.load(f)
-                name = fname.replace("_metrics.json", "")
-                models[name] = data
+            try:
+                with open(path) as f:
+                    content = f.read().strip()
+                    if not content:
+                        print(f"[!] Skipped empty file: {fname}")
+                        continue
+                    data = json.loads(content)
+                    name = fname.replace("_metrics.json", "")
+                    models[name] = data
+            except json.JSONDecodeError:
+                print(f"[!] Invalid JSON in file: {fname}")
     return models
 
 def plot_metrics(models_dict, title, filename=None):
@@ -39,19 +46,13 @@ def plot_metrics(models_dict, title, filename=None):
 def main():
     base_dir = "experiments/results"
 
-    # --- VALIDATION ---
-    print("\n📊 VALIDATION - Fine-Tuned")
-    val_models = load_metrics(os.path.join(base_dir, "validation/finetuned"))
-    for name, m in val_models.items():
-        print(f"\n{name}:")
-        for k, v in m.items():
-            print(f"  {k}: {v}")
-    plot_metrics(val_models, "Validation Metrics (Fine-Tuned)", "validation_finetuned.png")
-
     # --- EVALUATION ---
     print("\n📊 EVALUATION - Fine-Tuned")
     eval_ft_models = load_metrics(os.path.join(base_dir, "evaluation/finetuned"))
     for name, m in eval_ft_models.items():
+        if not isinstance(m, dict):
+            print(f"[!] Skipped invalid metrics for: {name}")
+            continue
         print(f"\n{name}:")
         for k, v in m.items():
             print(f"  {k}: {v}")
@@ -60,6 +61,9 @@ def main():
     print("\n📊 EVALUATION - Pretrained")
     eval_pt_models = load_metrics(os.path.join(base_dir, "evaluation/pretrained"))
     for name, m in eval_pt_models.items():
+        if not isinstance(m, dict):
+            print(f"[!] Skipped invalid metrics for: {name}")
+            continue
         print(f"\n{name}:")
         for k, v in m.items():
             print(f"  {k}: {v}")
@@ -67,22 +71,39 @@ def main():
 
     # --- ENSEMBLE ---
     print("\n📊 EVALUATION - Ensemble")
-    ensemble_path = os.path.join(base_dir, "evaluation", "ensemble-majority-voting-imdb_metrics.json")
+    ensemble_path = os.path.join(base_dir, "evaluation", "ensemble-majority-voting-imdb.json")
     if os.path.exists(ensemble_path):
         with open(ensemble_path) as f:
-            ensemble_metrics = json.load(f)
-        print("\nensemble-majority-voting-imdb:")
-        for k, v in ensemble_metrics.items():
-            print(f"  {k}: {v}")
-        plot_metrics({"Ensemble": ensemble_metrics}, "Evaluation: Ensemble Model", "evaluation_ensemble.png")
+            content = f.read().strip()
+            if content:
+                try:
+                    ensemble_metrics = json.loads(content)
+                    if isinstance(ensemble_metrics, dict):
+                        print("\nensemble-majority-voting-imdb:")
+                        for k, v in ensemble_metrics.items():
+                            print(f"  {k}: {v}")
+                        plot_metrics({"Ensemble": ensemble_metrics}, "Evaluation: Ensemble Model", "evaluation_ensemble.png")
+                    else:
+                        print("[!] Skipped ensemble file: not a valid dict")
+                except json.JSONDecodeError:
+                    print("[!] Skipped ensemble file: invalid JSON")
+            else:
+                print("[!] Skipped empty ensemble metrics file.")
+    else:
+        print("[!] Ensemble metrics file not found.")
 
     # --- FINE-TUNED vs PRETRAINED ---
     print("\n📊 FINE-TUNED vs PRETRAINED")
     common_models = set(eval_ft_models) & set(eval_pt_models)
     comparison = {}
     for model in common_models:
-        comparison[model + "_ft"] = eval_ft_models[model]
-        comparison[model + "_pt"] = eval_pt_models[model]
+        ft_data = eval_ft_models.get(model, {})
+        pt_data = eval_pt_models.get(model, {})
+        if isinstance(ft_data, dict) and isinstance(pt_data, dict):
+            comparison[model + "_ft"] = ft_data
+            comparison[model + "_pt"] = pt_data
+        else:
+            print(f"[!] Skipped invalid pair: {model}")
     plot_metrics(comparison, "Fine-Tuned vs Pretrained Models", "comparison_ft_vs_pt.png")
 
 if __name__ == "__main__":

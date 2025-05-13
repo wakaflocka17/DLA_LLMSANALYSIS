@@ -7,6 +7,10 @@ optimum[onnxruntime]==1.20.0
 # Pin accelerate to a compatible version for Trainer
 accelerate>=0.20.1
 
+scikit-learn==1.2.2
+
+numpy==1.23.5
+
 # Add other direct dependencies of your project here if needed, e.g.:
 # bitsandbytes
 # datasets

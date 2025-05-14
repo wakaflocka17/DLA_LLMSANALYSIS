@@ -39,12 +39,9 @@
 ---
 
 ## 1. 🧑🏻‍🎓 Student <a name="student"></a>
-
-#### Francesco Congiu  
-> Student ID: 60/73/65300  
->  
->> E-Mail: f.congiu38@studenti.unica.it  
-
+> **👤 Francesco Congiu**  
+> - **ID Studente:** 60/73/65300  
+> - **Email:** [f.congiu38@studenti.unica.it](mailto:f.congiu38@studenti.unica.it)
 ---
 
 ## 2. 📌 Description <a name="description"></a>

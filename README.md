@@ -63,11 +63,12 @@ Both pretrained and fine-tuned versions are evaluated to compare generalization 
 > 
 > Below a quick overview of each file:
 
-| Notebook | Purpose |
-|----------|---------|
-| `train_models_from_scratch.ipynb` | Fine-tune each model and evaluate them individually |
-| `ensemble_model_evaluation.ipynb` | Run ensemble predictions with majority voting |
-| `models_plots_and_results.ipynb` | *(Coming soon)* Visual analysis, calibration and fairness plots |
+| Notebook                             | Purpose                                                                       |
+|--------------------------------------|-------------------------------------------------------------------------------|
+| `train_models_from_scratch.ipynb`    | Fine-tune each model and evaluate them individually                           |
+| `ensemble_model_evaluation.ipynb`    | Run ensemble predictions with majority voting                                 |
+| `models_plots_and_results.ipynb`     | Plots the metrics results from `.json` files              |
+| `test_models.ipynb`                  | Download fine-tuned models from HF, run individual inference, summary table and ensemble majority-vote |
 
 ---
 
@@ -98,7 +99,8 @@ Both pretrained and fine-tuned versions are evaluated to compare generalization 
 ├── 📁 notebooks/
 │   ├── train_models_from_scratch.ipynb
 │   ├── ensemble_model_evaluation.ipynb
-│   └── plot_results_and_test_models.ipynb
+│   ├── plot_results_and_test_models.ipynb
+│   └── test_models.ipynb
 │
 ├── 📁 src/
 │   ├── 📁 architectures/
@@ -301,6 +303,142 @@ notebook_login()
 
 ### 7.3 📊 `models_plots_and_results.ipynb`
 
+### 7.4 🤖 `test_models.ipynb`
+
+This notebook pulls down your fine-tuned `BERT`, `BART` and `GPT-Neo` models from Hugging Face, wraps each in a HuggingFace Transformers pipeline, runs individual inference, builds a summary table, and finally runs a simple `majority-vote ensemble`.
+
+#### 7.4.1 📦 Installing dependencies
+```bash
+!pip install transformers datasets huggingface_hub
+```
+
+#### 7.4.2 🔐 Hugging Face Login
+```python
+from huggingface_hub import notebook_login
+notebook_login()  # paste your token when prompted
+```
+#### 7.4.3 🚀 Download & Load Models
+```python
+import pandas as pd
+from collections import Counter
+from IPython.display import display
+from huggingface_hub import snapshot_download
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+
+single_model_repos = {
+    "BERT":    "wakaflocka17/bert-imdb-finetuned",
+    "BART":    "wakaflocka17/bart-imdb-finetuned",
+    "GPT-Neo": "wakaflocka17/gptneo-imdb-finetuned",
+}
+
+pipelines = {}
+
+for name, repo_id in single_model_repos.items():
+    local_dir = snapshot_download(repo_id)
+    tok = AutoTokenizer.from_pretrained(local_dir)
+    mdl = AutoModelForSequenceClassification.from_pretrained(local_dir)
+    pipelines[name] = pipeline("text-classification", model=mdl, tokenizer=tok, return_all_scores=False)
+
+print("✅ Pipelines loaded.")
+```
+
+#### 7.4.4 🔍 Build and display the Summary Table
+```python
+reviews = [
+    "I absolutely loved this movie!",
+    "Quite boring and too long."
+]
+
+ground_truths = ["POSITIVE", "NEGATIVE"]
+rows = []
+
+for text, gt in zip(reviews, ground_truths):
+    preds = {name: pipelines[name]([text], batch_size=1)[0]["label"] for name in pipelines}
+    vote = Counter(preds.values()).most_common(1)[0][0]
+    rows.append({
+        "Review": text,
+        "Ground Truth": gt,
+        **preds,
+        "Ensemble Vote": vote
+    })
+
+df = pd.DataFrame(rows)
+display(df)
+```
+Or, if you are interested in specifically testing one of the previously downloaded and set up models, take a look at the code below.
+
+#### 7.4.5 🟨 Single model testing: Bert
+```python
+def infer_bert(text):
+    return pipelines['BERT'](text)
+
+single_review = "I absolutely loved this movie!"
+reviews_list = [
+    "A compelling and moving story.",
+    "I found it rather dull and predictable."
+]
+
+print("BERT single:", infer_bert(single_review))
+print("BERT batch:", pipelines['BERT'](reviews_list, batch_size=8))
+```
+
+#### 7.4.6 🟩 Single model testing: Bart
+```python
+def infer_bart(text):
+    return pipelines['BART'](text)
+
+single_review = "I absolutely loved this movie!"
+reviews_list = [
+    "A compelling and moving story.",
+    "I found it rather dull and predictable."
+]
+
+print("BART single:", infer_bart(single_review))
+print("BART batch:", pipelines['BART'](batch_reviews, batch_size=8))
+```
+
+#### 7.4.7 🟦 Single model testing: Gpt-Neo-2.7b
+```python
+def infer_gptneo(text):
+    return pipelines['GPT-Neo'](text)
+
+single_review = "I absolutely loved this movie!"
+reviews_list = [
+    "A compelling and moving story.",
+    "I found it rather dull and predictable."
+]
+
+print("GPT-Neo single:", infer_gptneo(single_review))
+print("GPT-Neo batch:", pipelines['GPT-Neo'](batch_reviews, batch_size=8))
+```
+
+#### 7.4.8 🟥 Single model testing: Ensemble model (using Majority Voting)
+```python
+from collections import Counter
+
+single_review = "I absolutely loved this movie!"
+reviews_list = [
+    "A compelling and moving story.",
+    "I found it rather dull and predictable."
+]
+
+print("=== Ensemble Predictions (Majority Vote) ===")
+
+# Single review
+single_vote = Counter(
+    pipelines[name]([reviews[0]], batch_size=1)[0]["label"]
+    for name in pipelines
+).most_common(1)[0][0]
+print(f"Single: {single_vote}")
+
+# Batch of reviews
+batch_votes = []
+for text in reviews:
+    preds = [pipelines[name]([text], batch_size=1)[0]["label"] for name in pipelines]
+    vote = Counter(preds).most_common(1)[0][0]
+    batch_votes.append(vote)
+print(f"Batch: {batch_votes}")
+```
 ---
 
 ## 8. 📊 Metrics and Outputs <a name="metrics-and-outputs"></a>
@@ -333,6 +471,8 @@ The evaluation metrics are saved as `.json` files for each model in the followin
   "f1": 0.90
 }
 ```
+
+### 8.3 📊 Metrics Plots
 
 ---
 

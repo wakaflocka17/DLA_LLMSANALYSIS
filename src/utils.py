@@ -33,11 +33,7 @@ def get_prediction(logits, model_type: str):
     if model_type in ["encoder-only", "encoder-decoder"]:
         return logits.argmax(dim=-1).item()
     elif model_type == "decoder-only":
-        # Per AutoModelForSequenceClassification, i logits sono (batch_size, num_classes)
-        # anche per i modelli decoder-only, poiché l'head di classificazione gestisce il pooling.
-        # La riga originale `logits[:, -1, :].argmax(dim=-1).item()` presumeva
-        # che i logits fossero (batch_size, sequence_length, num_classes), il che non è il caso qui.
-        return logits.argmax(dim=-1).item() # Riga corretta
+        return logits.argmax(dim=-1).item()
     else:
         raise ValueError("Tipo modello non supportato")
 
@@ -121,15 +117,14 @@ class TqdmLoggingCallback(TrainerCallback):
             self.pbar.close()
         logger.info("Training completato.")
 
-
 # New function to load models locally first
 def load_local_model(
     model_config_entry: dict, 
     model_key_for_log: str, 
-    accelerator, # Added
-    use_amp: bool, # Added
-    use_bettertransformer: bool, # Added
-    use_onnxruntime: bool, # Added
+    accelerator, 
+    use_amp: bool, 
+    use_bettertransformer: bool, 
+    use_onnxruntime: bool, 
     load_in_8bit_override: bool = False # To allow specific 8-bit loading for models like GPT-Neo
     ):
     """
@@ -152,7 +147,7 @@ def load_local_model(
         tuple: (model, tokenizer) or (None, None) if loading fails.
     """
     model_name = model_config_entry.get('model_name')
-    repo_finetuned = model_config_entry.get('repo_finetuned') # This will now pick up the corrected path
+    repo_finetuned = model_config_entry.get('repo_finetuned') 
     repo_downloaded = model_config_entry.get('repo_downloaded')
 
     paths_to_try = []

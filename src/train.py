@@ -32,7 +32,7 @@ def main():
     model.train(output_dir=args.output_dir,
                 num_train_epochs=args.epochs,
                 per_device_train_batch_size=args.batch_size,
-                callbacks=[tqdm_callback])  # Add the callback here
+                callbacks=[tqdm_callback])
 
 if __name__ == "__main__":
     main()

@@ -67,7 +67,7 @@ Both pretrained and fine-tuned versions are evaluated to compare generalization 
 |--------------------------------------|-------------------------------------------------------------------------------|
 | `train_models_from_scratch.ipynb`    | Fine-tune each model and evaluate them individually                           |
 | `ensemble_model_evaluation.ipynb`    | Run ensemble predictions with majority voting                                 |
-| `models_plots_and_results.ipynb`     | Plots the metrics results from `.json` files              |
+| `plot_results.ipynb`     | Plots the metrics results from `.json` files              |
 | `test_models.ipynb`                  | Download fine-tuned models from HF, run individual inference, summary table and ensemble majority-vote |
 
 ---
@@ -99,7 +99,7 @@ Both pretrained and fine-tuned versions are evaluated to compare generalization 
 ├── 📁 notebooks/
 │   ├── train_models_from_scratch.ipynb
 │   ├── ensemble_model_evaluation.ipynb
-│   ├── plot_results_and_test_models.ipynb
+│   ├── plot_results.ipynb
 │   └── test_models.ipynb
 │
 ├── 📁 src/
@@ -301,7 +301,182 @@ notebook_login()
 !venv/bin/python src/upload_models.py --only ensemble_majority_voting
 ```
 
-### 7.3 📊 `models_plots_and_results.ipynb`
+### 7.3 📊 `plot_results.ipynb`
+This notebook is used to plot the results of the evaluation of the models. It uses the `plot_results.py` script to generate the plots.
+
+#### 7.3.1 🔄 Cloning the repository
+```bash
+!test -d DLA_LLMSANALYSIS && rm -rf DLA_LLMSANALYSIS
+!git clone https://github.com/wakaflocka17/DLA_LLMSANALYSIS.git
+%cd DLA_LLMSANALYSIS
+```
+
+#### 7.3.2 📊 Plotting the results
+```python
+import os, glob, json
+import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
+
+# 1) Configuration
+metrics     = ["accuracy", "precision", "recall", "f1"]
+base_dir    = "experiments/results/evaluation"
+single_keys = ["bart-base", "bert-base-uncased", "gpt-neo-2.7b"]
+
+colors = {
+    "bart-base":         "#4285F4",
+    "bert-base-uncased": "#DB4437",
+    "gpt-neo-2.7b":      "#F4B400",
+    "ensemble":          "#0F9D58",
+}
+hatches = ['...', '///', '\\\\\\', 'xxx']
+
+
+def load_evaluation(base_dir, metrics):
+    """Carica tutti i JSON e restituisce un dict con pretrained, finetuned ed ensemble."""
+    data = {"pretrained": {}, "finetuned": {}}
+    for phase in data:
+        for path in glob.glob(f"{base_dir}/{phase}/*-imdb.json"):
+            name = os.path.basename(path).replace("-imdb.json", "")
+            d = json.load(open(path))
+            data[phase][name] = [d[m] for m in metrics]
+
+    # ensemble
+    ens_path = os.path.join(base_dir, "ensemble-mv-idb-metrics.json")
+    if not os.path.exists(ens_path):
+        raise FileNotFoundError("ensemble-mv-idb-metrics.json non trovato")
+    em = json.load(open(ens_path))
+    data["finetuned"]["ensemble"] = [em[m] for m in metrics]
+    return data
+
+
+def style_axes(ax):
+    """Applica spine nere e setta un po’ di tight_layout / legend standard."""
+    for s in ax.spines.values():
+        s.set_visible(True)
+        s.set_linewidth(0.8)
+        s.set_color("black")
+    ax.legend(loc="upper left", bbox_to_anchor=(1.02,1.0),
+              frameon=False, fontsize="small")
+
+
+def annotate_bars(ax, bars, rotate=False, pad=6, fontsize=7):
+    """
+    Posiziona le etichette sopra ogni barra.
+    Se rotate=True le ruota di 90° e usa ax.text per centrarle.
+    """
+    if not rotate:
+        for rects in bars:
+            ax.bar_label(rects, fmt="%.3f", padding=pad, fontsize=fontsize)
+    else:
+        fig = ax.get_figure()
+        for rects in bars:
+            for r in rects:
+                x = r.get_x() + r.get_width()/2
+                y = r.get_height()
+                trans = mtransforms.offset_copy(ax.transData, fig=fig,
+                                                x=0, y=pad, units='points')
+                ax.text(x, y, f"{y:.3f}",
+                        transform=trans, ha='center', va='bottom',
+                        rotation=90, fontsize=fontsize)
+
+
+def plot_group(eval_values, labels, title, out_png,
+               width_scale=0.8, rotate_labels=False,
+               label_fontsize=7, label_padding=6, ylim_top=1.05):
+    n = len(labels)
+    x = range(len(metrics))
+    width = width_scale / n
+
+    fig, ax = plt.subplots(figsize=(8 + 2*rotate_labels, 4))
+    bars = []
+    for i, name in enumerate(labels):
+        # --- qui determiniamo la chiave "base" per colors[name]
+        if name == "ensemble":
+            base = "ensemble"
+        elif name.endswith("-pretrained"):
+            base = name[:-11]
+        elif name.endswith("-finetuned"):
+            base = name[:-10]
+        else:
+            base = name
+
+        rects = ax.bar(
+            [xi + i*width for xi in x],
+            eval_values[name],
+            width=width,
+            color=colors[base],          # ora usa la chiave corretta
+            edgecolor="white",
+            hatch=hatches[i % len(hatches)],
+            linewidth=1.2,
+            label=name
+        )
+        bars.append(rects)
+
+    # annotate e resto identico...
+    annotate_bars(ax, bars, rotate=rotate_labels,
+                  pad=label_padding, fontsize=label_fontsize)
+
+    ax.set_xticks([xi + width*(n-1)/2 for xi in x])
+    ax.set_xticklabels([m.capitalize() for m in metrics])
+    ax.set_ylim(0, ylim_top)
+    ax.set_ylabel("Score")
+    ax.set_title(title, pad=15)
+    style_axes(ax)
+
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=300, bbox_inches="tight")
+    plt.show()
+
+
+if __name__ == "__main__":
+    data = load_evaluation(base_dir, metrics)
+
+    # a) pretrained
+    plot_group(
+        data["pretrained"],
+        single_keys,
+        "Pretrained Models Evaluation",
+        "pretrained_evaluation.png",
+        width_scale=0.8,
+        rotate_labels=False,
+        ylim_top=1.05
+    )
+
+    # b) fine-tuned + ensemble
+    plot_group(
+        data["finetuned"],
+        single_keys + ["ensemble"],
+        "Fine-tuned Models & Ensemble Evaluation",
+        "finetuned_plus_ensemble.png",
+        width_scale=0.99,
+        rotate_labels=True,
+        label_fontsize=7,
+        label_padding=6,
+        ylim_top=1.10
+    )
+
+    # c) all models
+    all_keys = [f"{k}-pretrained" for k in single_keys] + \
+               [f"{k}-finetuned"  for k in single_keys] + \
+               ["ensemble"]
+    all_data = {
+        **{f"{k}-pretrained": data["pretrained"][k] for k in single_keys},
+        **{f"{k}-finetuned":  data["finetuned"][k]  for k in single_keys},
+        "ensemble": data["finetuned"]["ensemble"]
+    }
+
+    plot_group(
+        all_data,
+        all_keys,
+        "All Models Comparison",
+        "all_models_comparison.png",
+        width_scale=0.95,
+        rotate_labels=True,
+        label_fontsize=7,
+        label_padding=6,
+        ylim_top=1.10
+    )
+```
 
 ### 7.4 🤖 `test_models.ipynb`
 

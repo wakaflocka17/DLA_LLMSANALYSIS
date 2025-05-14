@@ -3,6 +3,7 @@ data/
 models/
 checkpoints/
 logs/
+.vscode/
 
 # File di sistema
 .DS_Store

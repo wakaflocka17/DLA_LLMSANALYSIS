@@ -261,7 +261,7 @@ This notebook performs ensemble **Majority Voting** among the fine-tuned models 
 
 #### 7.2.4 📦 Installing dependencies
 ```bash
-!venv/bin/pip install -r requirements.txt
+!venv/bin/pip install -r requirements.in --constraint constraints.txt
 ```
 
 #### 7.2.5 🔐 HuggingFace Login
@@ -291,12 +291,12 @@ notebook_login()
 
 #### 7.2.7 🧠 Ensemble model evaluation
 ```python
-!venv/bin/python src/upload_models.py --only majority-voting-imdb
+!venv/bin/python main.py --model_config_key ensemble_majority_voting --mode eval --eval_type fine_tuned --output_json_path "experiments/results/evaluation/ensemble-majority-voting-imdb.json"
 ```
 
 #### 7.2.8 ☁️ Uploading the Ensemble model to Hugging Face Hub
 ```python
-!venv/bin/python src/upload_models.py --only majority-voting-imdb
+!venv/bin/python src/upload_models.py --only ensemble_majority_voting
 ```
 
 ### 7.3 📊 `models_plots_and_results.ipynb`

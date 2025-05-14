@@ -12,3 +12,4 @@ tqdm
 bitsandbytes 
 accelerate>=0.20.1
 optimum[onnxruntime]==1.20.0
+numpy==1.23.5

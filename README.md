@@ -4,6 +4,9 @@
   <a href="https://www.apache.org/licenses/LICENSE-2.0" target="_blank">
     <img src="https://img.shields.io/badge/License-Apache_2.0-4285F4?style=for-the-badge&logo=none&logoColor=white" alt="Apache License 2.0"/>
   </a>
+  <a href="https://huggingface.co/collections/wakaflocka17/dla-llmsanalysis-682508b45b5784e023db3025" target="_blank">
+    <img src="https://img.shields.io/badge/Hosted_on-HuggingFace-34A853?style=for-the-badge&logo=HuggingFace&logoColor=white" alt="Hosted on Hugging Face"/>
+  </a>
   <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank">
     <img src="https://img.shields.io/badge/Docs-CC_BY_4.0-FBBC05?style=for-the-badge&logo=none&logoColor=white" alt="CC BY 4.0 License"/>
   </a>

@@ -237,6 +237,8 @@ notebook_login()
 !venv/bin/python src/upload_models.py --only gpt-neo-2.7B-imdb
 ```
 
+---
+
 ### 7.2 👥 `ensemble_model_evaluation.ipynb`
 This notebook performs ensemble **Majority Voting** among the fine-tuned models for the **Sentiment Analysis** task on the IMDb dataset. Following are the steps performed:
 
@@ -300,6 +302,8 @@ notebook_login()
 ```python
 !venv/bin/python src/upload_models.py --only ensemble_majority_voting
 ```
+
+---
 
 ### 7.3 📊 `plot_results.ipynb`
 This notebook is used to plot the results of the evaluation of the models. It uses the `plot_results.py` script to generate the plots.
@@ -478,6 +482,8 @@ if __name__ == "__main__":
     )
 ```
 
+---
+
 ### 7.4 🤖 `test_models.ipynb`
 
 This notebook pulls down your fine-tuned `BERT`, `BART` and `GPT-Neo` models from Hugging Face, wraps each in a HuggingFace Transformers pipeline, runs individual inference, builds a summary table, and finally runs a simple `majority-vote ensemble`.
@@ -648,6 +654,50 @@ The evaluation metrics are saved as `.json` files for each model in the followin
 ```
 
 ### 8.3 📊 Metrics Plots
+To evaluate the effectiveness of our models on the `stanford/imdb` dataset, we generated three bar charts comparing the main classification metrics (Accuracy, Precision, Recall and F1-Score).
+
+#### 8.3.1 Pretrained Models Evaluation  
+![Pretrained Models Evaluation](experiments/results/images/pretrained_evaluation.png)
+
+In this first plot we compare the **out-of-the-box** performance of the pretrained versions of BART, BERT and GPT-Neo.
+- **Accuracy**: `BART-base` gets the best result (0.516), while `GPT-Neo-2.7b` settles at 0.474 and `BERT-base-uncased` at 0.455;
+- **Precision**: `BART-base` is still in the lead (0.527), with `BERT` at 0.475 and `GPT-Neo` at 0.458; 
+- **Recall**: `BERT` stands out clearly (0.830), a sign of a strong ability to recover all positive instances, while `BART` and `GPT-Neo` remain below 0.31;  
+- **F1-Score**: The harmony between precision and recall rewards `BERT` (0.604), compared with 0.389 for `BART` and 0.347 for `GPT-Neo`.
+
+> [!NOTE]
+>  **Insight**: from pretrained the transformer architectures are not yet homogeneous: `BERT` favors recall at the expense of accuracy, `BART` is more balanced, `GPT-Neo` suffers in all metrics.
+
+#### 8.3.2 Fine-tuned Models & Ensemble Evaluation  
+After we performed fine-tuning on the IMDB training set:
+![Fine-tuned Models & Ensemble Evaluation](experiments/results/images/finetuned_plus_ensemble.png)
+| Modello               | Accuracy | Precision | Recall | F1    |
+|-----------------------|---------:|----------:|-------:|------:|
+| **BART-base**         | 0.880    | 0.884     | 0.874  | 0.879 |
+| **BERT-base-uncased** | 0.873    | 0.866     | 0.883  | 0.875 |
+| **GPT-Neo-2.7b**      | 0.841    | 0.854     | 0.823  | 0.838 |
+| **Ensemble**          | 0.933    | 0.956     | 0.908  | 0.931 |
+- All models improve by more than +0.35 points in accuracy;  
+- The **ensemble** achieves the highest accuracy (0.956) and also leads on accuracy (0.933) and F1 (0.931);  
+- `BERT-base-uncased` wins the highest recall among singles (0.883) and an F1 of 0.875; 
+- `GPT-Neo`, although enhanced by fine-tuning, remains the furthest behind with F1=0.838.
+
+> [!NOTE]
+>  **Insight**: fine-tuning completely transforms performance, narrowing the gap between architectures; ensemble, combining the strengths of each, proves to be the most robust choice.
+
+#### 8.3.3 All Models Comparison
+In this chart we place side by side:
+1. **Pretrained** (light hatching);
+2. **Fine-tuned** (dark hatching);
+3. **Ensemble using Fine-tuned models** (green).
+![All Models Comparison](experiments/results/images/all_models_comparison.png)
+In fact, we can see how:
+- The jump from pretrained (~0.50) to fine-tuned (~0.88) is evident on all metrics;
+- No single fine-tuned model reaches ensemble levels: +0.053 in F1 compared to the best of the individuals;
+- The ensemble acts as a “manifold” of strengths, offering the greatest stability on precision, recall, and F1.
+
+#### 8.3.4 Conclusions
+*These results highlight how, for our Binary Sentiment Analysis task, fine-tuning was essential to be able to extract relevant information. More importantly, it was essential to observe how the ensembler further multiplies the overall effectiveness of the other individual three models.* 
 
 ---
 

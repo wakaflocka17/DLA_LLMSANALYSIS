@@ -708,6 +708,7 @@ In fact, we can see how:
 > - **GPU**: NVIDIA A100 (40GB VRAM)  
 > - **RAM**: High-RAM Instance (≈ 52 GB)  
 > - **Backend**: PyTorch with CUDA
+> - **Cost**: €22 spent on Colab Pro+ to fully leverage GPU performance
 
 > [!WARNING]
 > - Training **GPT-Neo** locally (especially on CPU or low-VRAM GPU) may be extremely slow or unstable

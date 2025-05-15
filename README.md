@@ -394,7 +394,6 @@ def plot_group(eval_values, labels, title, out_png,
     fig, ax = plt.subplots(figsize=(8 + 2*rotate_labels, 4))
     bars = []
     for i, name in enumerate(labels):
-        # --- qui determiniamo la chiave "base" per colors[name]
         if name == "ensemble":
             base = "ensemble"
         elif name.endswith("-pretrained"):
@@ -408,7 +407,7 @@ def plot_group(eval_values, labels, title, out_png,
             [xi + i*width for xi in x],
             eval_values[name],
             width=width,
-            color=colors[base],          # ora usa la chiave corretta
+            color=colors[base],          
             edgecolor="white",
             hatch=hatches[i % len(hatches)],
             linewidth=1.2,
@@ -416,7 +415,7 @@ def plot_group(eval_values, labels, title, out_png,
         )
         bars.append(rects)
 
-    # annotate e resto identico...
+    # annotate
     annotate_bars(ax, bars, rotate=rotate_labels,
                   pad=label_padding, fontsize=label_fontsize)
 

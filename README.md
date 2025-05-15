@@ -669,7 +669,7 @@ In this first plot we compare the **out-of-the-box** performance of the pretrain
 >  **Insight**: from pretrained the transformer architectures are not yet homogeneous: `BERT` favors recall at the expense of accuracy, `BART` is more balanced, `GPT-Neo` suffers in all metrics.
 
 #### 8.3.2 Fine-tuned Models & Ensemble Evaluation  
-After we performed fine-tuning on the IMDB training set:
+After we performed light fine-tuning on the IMDB training set:
 ![Fine-tuned Models & Ensemble Evaluation](experiments/results/images/finetuned_plus_ensemble.png)
 | Modello               | Accuracy | Precision | Recall | F1    |
 |-----------------------|---------:|----------:|-------:|------:|
